@@ -1,5 +1,4 @@
 {
-  "dashboard": {
     "id": null,
     "title": "MarketSage - Comprehensive Logs",
     "tags": ["marketsage", "logs"],
@@ -103,6 +102,7 @@
       }
     ],
     "time": {"from": "now-1h", "to": "now"},
-    "refresh": "30s"
-  }
+    "refresh": "30s",
+    "version": 1,
+    "editable": true
 }
