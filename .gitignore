@@ -1,0 +1,12 @@
+# Ignore sensitive files
+.env
+.env.backup
+secrets/
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+*.tmp
+.DS_Store

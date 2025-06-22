@@ -1,0 +1,238 @@
+services:
+  # Grafana for visualization and dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD_FILE=/run/secrets/grafana_admin_password
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION=false
+    command: ["grafana-server", "--config=/etc/grafana/grafana.ini", "--homepath=/usr/share/grafana"]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    secrets:
+      - grafana_admin_password
+      - grafana_cloud_api_key
+    networks:
+      - monitoring
+      - ${MARKETSAGE_NETWORK:-marketsage_default}
+    depends_on:
+      - prometheus
+      - loki
+
+  # Grafana Alloy for metrics and log collection
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    restart: unless-stopped
+    ports:
+      - "12345:12345"
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+    environment:
+      - GRAFANA_CLOUD_API_KEY_FILE=/run/secrets/grafana_cloud_api_key
+      - GRAFANA_CLOUD_PROMETHEUS_URL=${GRAFANA_CLOUD_PROMETHEUS_URL}
+      - GRAFANA_CLOUD_PROMETHEUS_USER=${GRAFANA_CLOUD_PROMETHEUS_USER}
+      - GRAFANA_CLOUD_LOKI_URL=${GRAFANA_CLOUD_LOKI_URL}
+      - GRAFANA_CLOUD_LOKI_USER=${GRAFANA_CLOUD_LOKI_USER}
+      - MARKETSAGE_APP_URL=${MARKETSAGE_APP_URL:-marketsage-web:3000}
+    volumes:
+      - ./alloy/config:/etc/alloy:ro
+      - ./alloy/rules:/etc/prometheus/rules:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    secrets:
+      - grafana_cloud_api_key
+      - prometheus_basic_auth
+    networks:
+      - monitoring
+      - ${MARKETSAGE_NETWORK:-marketsage_default}
+    depends_on:
+      - prometheus
+      - loki
+
+  # Local Prometheus for backup and local queries
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+      - --web.config.file=/etc/prometheus/web-config.yml
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/web-config.yml:/etc/prometheus/web-config.yml:ro
+      - ./alloy/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    secrets:
+      - prometheus_basic_auth
+    networks:
+      - monitoring
+    depends_on:
+      - alertmanager
+
+  # Loki for log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command:
+      - -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./config/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    networks:
+      - monitoring
+
+  # Alertmanager for alert routing
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=http://localhost:9093
+    volumes:
+      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    secrets:
+      - smtp_password
+      - slack_webhook_url
+    networks:
+      - monitoring
+
+  # PostgreSQL Exporter for database metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    restart: unless-stopped
+    ports:
+      - "9187:9187"
+    environment:
+      - DATA_SOURCE_NAME=postgresql://marketsage:${POSTGRES_PASSWORD:-password}@marketsage-db:5432/marketsage?sslmode=disable
+    networks:
+      - monitoring
+      - ${MARKETSAGE_NETWORK:-marketsage_default}
+    depends_on:
+      - prometheus
+
+  # Redis Exporter for cache metrics
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://marketsage-redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    networks:
+      - monitoring
+      - ${MARKETSAGE_NETWORK:-marketsage_default}
+    depends_on:
+      - prometheus
+
+  # cAdvisor for container metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - --path.procfs=/host/proc
+      - --path.rootfs=/rootfs
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+# Docker secrets for sensitive data
+secrets:
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password.txt
+  grafana_cloud_api_key:
+    file: ./secrets/grafana_cloud_api_key.txt
+  prometheus_basic_auth:
+    file: ./secrets/prometheus_basic_auth.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
+  slack_webhook_url:
+    file: ./secrets/slack_webhook_url.txt
+
+# Persistent volumes
+volumes:
+  grafana-data:
+    driver: local
+  alloy-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  loki-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+
+# Networks
+networks:
+  monitoring:
+    driver: bridge
+    name: monitoring
+  # External network for MarketSage connection
+  marketsage_default:
+    external: true
+    name: ${MARKETSAGE_NETWORK:-marketsage_default}
