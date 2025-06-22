@@ -82,16 +82,236 @@ prometheus.remote_write "local_prometheus" {
 }
 
 // ============================================================================
-// DOCKER CONTAINER LOG COLLECTION
+// COMPREHENSIVE LOG COLLECTION - 8 CATEGORIES
 // ============================================================================
 
-// Collect Docker container logs and forward to both destinations
+// 1. APPLICATION LOGS - Docker containers and application-specific logs
 loki.source.docker "docker_logs" {
 	host       = "unix:///var/run/docker.sock"
 	targets    = [{
 		__address__ = "localhost",
 		job         = "docker",
 	}]
+	forward_to = [loki.process.application_logs.receiver]
+}
+
+// Process and label application logs
+loki.process "application_logs" {
+	stage.json {
+		expressions = {
+			timestamp = "time",
+			level     = "level",
+			message   = "msg",
+		}
+	}
+	
+	stage.labels {
+		values = {
+			level = "",
+			container = "",
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 2. SYSTEM LOGS - System-level logs from host
+loki.source.file "system_logs" {
+	targets = [
+		{__path__ = "/var/log/messages", job = "system", log_type = "messages"},
+		{__path__ = "/var/log/kern.log", job = "system", log_type = "kernel"},
+		{__path__ = "/var/log/cron.log", job = "system", log_type = "cron"},
+		{__path__ = "/var/log/daemon.log", job = "system", log_type = "daemon"},
+	]
+	forward_to = [loki.process.system_logs.receiver]
+}
+
+loki.process "system_logs" {
+	stage.regex {
+		expression = "^(?P<timestamp>\\w+\\s+\\d+\\s+\\d+:\\d+:\\d+)\\s+(?P<hostname>\\S+)\\s+(?P<process>\\S+)(?:\\[(?P<pid>\\d+)\\])?:\\s*(?P<message>.*)"
+	}
+	
+	stage.labels {
+		values = {
+			hostname = "",
+			process  = "",
+			log_type = "",
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 3. SECURITY LOGS - Authentication and security events
+loki.source.file "security_logs" {
+	targets = [
+		{__path__ = "/var/log/auth.log", job = "security", log_type = "auth"},
+		{__path__ = "/var/log/secure", job = "security", log_type = "secure"},
+		{__path__ = "/var/log/audit/audit.log", job = "security", log_type = "audit"},
+	]
+	forward_to = [loki.process.security_logs.receiver]
+}
+
+loki.process "security_logs" {
+	stage.regex {
+		expression = "^(?P<timestamp>\\w+\\s+\\d+\\s+\\d+:\\d+:\\d+)\\s+(?P<hostname>\\S+)\\s+(?P<process>\\S+)(?:\\[(?P<pid>\\d+)\\])?:\\s*(?P<message>.*)"
+	}
+	
+	stage.labels {
+		values = {
+			hostname = "",
+			process  = "",
+			log_type = "",
+		}
+	}
+	
+	// Alert on failed login attempts
+	stage.match {
+		selector = `{log_type="auth"}`
+		stage.regex {
+			expression = ".*Failed.*password.*"
+		}
+		stage.labels {
+			values = {
+				alert_type = "failed_login",
+			}
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 4. ERROR LOGS - Application and system errors
+loki.source.file "error_logs" {
+	targets = [
+		{__path__ = "/var/log/**/*.error", job = "errors", log_type = "error"},
+		{__path__ = "/var/log/apache2/error.log", job = "errors", log_type = "apache_error"},
+		{__path__ = "/var/log/nginx/error.log", job = "errors", log_type = "nginx_error"},
+	]
+	forward_to = [loki.process.error_logs.receiver]
+}
+
+loki.process "error_logs" {
+	stage.regex {
+		expression = "(?i).*(?P<level>error|warning|critical|fatal).*"
+	}
+	
+	stage.labels {
+		values = {
+			level    = "",
+			log_type = "",
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 5. ACCESS LOGS - Web server and application access
+loki.source.file "access_logs" {
+	targets = [
+		{__path__ = "/var/log/apache2/access.log", job = "access", log_type = "apache_access"},
+		{__path__ = "/var/log/nginx/access.log", job = "access", log_type = "nginx_access"},
+		{__path__ = "/var/log/**/*access*.log", job = "access", log_type = "application_access"},
+	]
+	forward_to = [loki.process.access_logs.receiver]
+}
+
+loki.process "access_logs" {
+	// Parse common log format
+	stage.regex {
+		expression = "^(?P<remote_addr>\\S+)\\s+\\S+\\s+\\S+\\s+\\[(?P<time_local>[^\\]]+)\\]\\s+\"(?P<method>\\S+)\\s+(?P<uri>\\S+)\\s+(?P<protocol>\\S+)\"\\s+(?P<status>\\d+)\\s+(?P<body_bytes_sent>\\d+)"
+	}
+	
+	stage.labels {
+		values = {
+			method     = "",
+			status     = "",
+			log_type   = "",
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 6. DATABASE LOGS - PostgreSQL and Redis logs
+loki.source.file "database_logs" {
+	targets = [
+		{__path__ = "/var/lib/postgresql/*/log/*.log", job = "database", log_type = "postgresql"},
+		{__path__ = "/var/log/postgresql/*.log", job = "database", log_type = "postgresql"},
+		{__path__ = "/var/log/redis/*.log", job = "database", log_type = "redis"},
+	]
+	forward_to = [loki.process.database_logs.receiver]
+}
+
+loki.process "database_logs" {
+	stage.regex {
+		expression = "^(?P<timestamp>\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}).*?(?P<level>LOG|ERROR|WARNING|FATAL):\\s*(?P<message>.*)"
+	}
+	
+	stage.labels {
+		values = {
+			level    = "",
+			log_type = "",
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 7. PERFORMANCE LOGS - Application performance metrics and slow queries
+loki.source.file "performance_logs" {
+	targets = [
+		{__path__ = "/var/log/**/slow*.log", job = "performance", log_type = "slow_query"},
+		{__path__ = "/var/log/**/performance*.log", job = "performance", log_type = "performance"},
+		{__path__ = "/var/log/**/timing*.log", job = "performance", log_type = "timing"},
+	]
+	forward_to = [loki.process.performance_logs.receiver]
+}
+
+loki.process "performance_logs" {
+	stage.regex {
+		expression = ".*(?P<duration>\\d+(?:\\.\\d+)?)\\s*(?P<unit>ms|s|seconds?).*"
+	}
+	
+	stage.labels {
+		values = {
+			log_type = "",
+		}
+	}
+	
+	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+}
+
+// 8. BUSINESS LOGS - Application-specific business logic events
+loki.source.file "business_logs" {
+	targets = [
+		{__path__ = "/var/log/marketsage/*.log", job = "business", log_type = "marketsage"},
+		{__path__ = "/app/logs/*.log", job = "business", log_type = "application"},
+		{__path__ = "/var/log/**/transaction*.log", job = "business", log_type = "transactions"},
+		{__path__ = "/var/log/**/audit*.log", job = "business", log_type = "business_audit"},
+	]
+	forward_to = [loki.process.business_logs.receiver]
+}
+
+loki.process "business_logs" {
+	stage.json {
+		expressions = {
+			timestamp = "timestamp",
+			level     = "level",
+			message   = "message",
+			user_id   = "user_id",
+			action    = "action",
+		}
+	}
+	
+	stage.labels {
+		values = {
+			level    = "",
+			action   = "",
+			log_type = "",
+		}
+	}
+	
 	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
 }
 

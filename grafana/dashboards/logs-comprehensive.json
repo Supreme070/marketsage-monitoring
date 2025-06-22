@@ -1,0 +1,108 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "MarketSage - Comprehensive Logs",
+    "tags": ["marketsage", "logs"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "1. Application Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"docker\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "2. System Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"system\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "3. Security Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"security\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 6}
+      },
+      {
+        "id": 4,
+        "title": "4. Error Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"errors\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 6}
+      },
+      {
+        "id": 5,
+        "title": "5. Access Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"access\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 12}
+      },
+      {
+        "id": 6,
+        "title": "6. Database Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"database\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12}
+      },
+      {
+        "id": 7,
+        "title": "7. Performance Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"performance\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18}
+      },
+      {
+        "id": 8,
+        "title": "8. Business Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"business\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18}
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "30s"
+  }
+}
