@@ -128,12 +128,13 @@ jobs:
           cp .env.example .env
           cp -r secrets.example secrets
           
-          # Create test network (simulating MarketSage)
+          # Create networks for testing
+          docker network create marketsage_default || true
           docker network create marketsage_marketsage || true
           
           # Start test PostgreSQL and Redis containers
           docker run -d --name test-postgres \
-            --network marketsage_marketsage \
+            --network marketsage_default \
             --network-alias marketsage-db \
             -e POSTGRES_DB=marketsage \
             -e POSTGRES_USER=marketsage \
@@ -141,26 +142,18 @@ jobs:
             postgres:15-alpine
           
           docker run -d --name test-redis \
-            --network marketsage_marketsage \
+            --network marketsage_default \
             --network-alias marketsage-valkey \
             --network-alias redis \
             valkey/valkey:8-alpine
 
       - name: Deploy monitoring stack
         run: |
-          # Connect monitoring services to the existing MarketSage network
-          # We'll use the default network config and manually connect services after startup
+          # Start monitoring services with existing network configuration
+          # The marketsage_default network now exists and contains the test databases
           
           # Start monitoring services
           docker-compose up -d
-          
-          # Connect monitoring services to the marketsage_marketsage network for integration
-          docker network connect marketsage_marketsage prometheus || true
-          docker network connect marketsage_marketsage loki || true
-          docker network connect marketsage_marketsage grafana || true
-          docker network connect marketsage_marketsage alloy || true
-          docker network connect marketsage_marketsage postgres-exporter || true
-          docker network connect marketsage_marketsage redis-exporter || true
           
           # Wait for services to be ready
           sleep 30
@@ -207,7 +200,7 @@ jobs:
         run: |
           docker-compose down -v
           docker rm -f test-postgres test-redis || true
-          docker network rm marketsage_marketsage || true
+          docker network rm marketsage_default marketsage_marketsage || true
 
   build-and-publish:
     name: Build Custom Images
