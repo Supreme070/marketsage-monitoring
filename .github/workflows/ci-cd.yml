@@ -160,8 +160,8 @@ jobs:
 
       - name: Health check monitoring services
         run: |
-          # Check Prometheus
-          curl -f http://localhost:9090/-/ready || exit 1
+          # Check Prometheus (with basic auth)
+          curl -f -u admin:monitoring123 http://localhost:9090/-/ready || exit 1
           echo "✅ Prometheus is ready"
           
           # Check Loki
@@ -182,13 +182,13 @@ jobs:
           sleep 30
           
           # Check if PostgreSQL metrics are being collected
-          curl -s "http://localhost:9090/api/v1/query?query=pg_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ PostgreSQL metrics collected" || echo "❌ PostgreSQL metrics missing"
+          curl -s -u admin:monitoring123 "http://localhost:9090/api/v1/query?query=pg_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ PostgreSQL metrics collected" || echo "❌ PostgreSQL metrics missing"
           
           # Check if Redis metrics are being collected
-          curl -s "http://localhost:9090/api/v1/query?query=redis_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ Redis metrics collected" || echo "❌ Redis metrics missing"
+          curl -s -u admin:monitoring123 "http://localhost:9090/api/v1/query?query=redis_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ Redis metrics collected" || echo "❌ Redis metrics missing"
           
           # Check if system metrics are being collected
-          curl -s "http://localhost:9090/api/v1/query?query=node_load1" | jq -r '.data.result | length' | grep -v "0" && echo "✅ System metrics collected" || echo "❌ System metrics missing"
+          curl -s -u admin:monitoring123 "http://localhost:9090/api/v1/query?query=node_load1" | jq -r '.data.result | length' | grep -v "0" && echo "✅ System metrics collected" || echo "❌ System metrics missing"
 
       - name: Test log collection
         run: |
