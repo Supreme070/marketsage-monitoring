@@ -141,3 +141,43 @@ dashboard-import: ## Import Grafana dashboards
 	@echo "📊 Importing Grafana dashboards..."
 	@./scripts/import-dashboards.sh
 	@echo "✅ Dashboards imported"
+# Environment-specific commands
+start-staging: ## Start staging environment
+	@echo "🏗️ Starting staging environment..."
+	@docker-compose -f docker-compose.yml -f environments/staging/docker-compose.staging.yml --env-file environments/staging/.env.staging up -d
+
+start-dev: ## Start development environment
+	@echo "🔧 Starting development environment..."
+	@docker-compose -f docker-compose.yml -f environments/development/docker-compose.dev.yml --env-file environments/development/.env.development up -d
+
+start-production: ## Start production environment
+	@echo "🚀 Starting production environment..."
+	@docker-compose -f docker-compose.yml -f environments/production/docker-compose.production.yml --env-file environments/production/.env.production up -d
+
+stop-staging: ## Stop staging environment
+	@docker-compose -f docker-compose.yml -f environments/staging/docker-compose.staging.yml down
+
+stop-dev: ## Stop development environment
+	@docker-compose -f docker-compose.yml -f environments/development/docker-compose.dev.yml down
+
+stop-production: ## Stop production environment
+	@docker-compose -f docker-compose.yml -f environments/production/docker-compose.production.yml down
+
+# Environment URLs
+urls-staging: ## Show staging URLs
+	@echo "🏗️ Staging Environment URLs:"
+	@echo "Grafana: http://localhost:3001 (admin/staging-admin-pass)"
+	@echo "Prometheus: http://localhost:9091"
+	@echo "Loki: http://localhost:3101"
+
+urls-dev: ## Show development URLs
+	@echo "🔧 Development Environment URLs:"
+	@echo "Grafana: http://localhost:3002 (admin/dev)"
+	@echo "Prometheus: http://localhost:9092"
+	@echo "Loki: http://localhost:3102"
+
+urls-production: ## Show production URLs
+	@echo "🚀 Production Environment URLs:"
+	@echo "Grafana: http://localhost:3000 (admin/[from secrets])"
+	@echo "Prometheus: http://localhost:9090"
+	@echo "Loki: http://localhost:3100"

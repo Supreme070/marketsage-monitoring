@@ -1,0 +1,42 @@
+# Staging environment overrides for MarketSage Monitoring
+version: '3.8'
+
+services:
+  grafana:
+    container_name: grafana-staging
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=staging-admin-pass
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    ports:
+      - "3001:3000"
+
+  prometheus:
+    container_name: prometheus-staging
+    ports:
+      - "9091:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-remote-write-receiver
+
+  loki:
+    container_name: loki-staging
+    ports:
+      - "3101:3100"
+
+  alloy:
+    container_name: alloy-staging
+    ports:
+      - "12346:12345"
+
+  alertmanager:
+    container_name: alertmanager-staging
+    ports:
+      - "9094:9093"
+
+networks:
+  monitoring:
+    name: monitoring-staging

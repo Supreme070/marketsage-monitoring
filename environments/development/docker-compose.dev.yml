@@ -1,0 +1,42 @@
+# Development environment overrides for MarketSage Monitoring
+version: '3.8'
+
+services:
+  grafana:
+    container_name: grafana-dev
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=dev
+      - GF_SERVER_ROOT_URL=http://localhost:3002
+    ports:
+      - "3002:3000"
+
+  prometheus:
+    container_name: prometheus-dev
+    ports:
+      - "9092:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=1d
+      - --web.enable-remote-write-receiver
+
+  loki:
+    container_name: loki-dev
+    ports:
+      - "3102:3100"
+
+  alloy:
+    container_name: alloy-dev
+    ports:
+      - "12347:12345"
+
+  alertmanager:
+    container_name: alertmanager-dev
+    ports:
+      - "9095:9093"
+
+networks:
+  monitoring:
+    name: monitoring-dev
