@@ -3,7 +3,7 @@ global:
   smtp_from: 'marketsage-alerts@yourdomain.com'
   smtp_auth_username: 'marketsage-alerts@yourdomain.com'
   smtp_auth_password_file: '/run/secrets/smtp_password'
-  smtp_require_tls: false
+  smtp_require_tls: true
 
 route:
   group_by: ['alertname']
