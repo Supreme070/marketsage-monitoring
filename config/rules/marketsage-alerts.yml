@@ -1,0 +1,219 @@
+groups:
+  - name: marketsage.application
+    interval: 30s
+    rules:
+      # Application Health Alerts
+      - alert: MarketSageDown
+        expr: up{job="marketsage-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: marketsage
+        annotations:
+          summary: "MarketSage application is down"
+          description: "MarketSage application has been down for more than 1 minute"
+          
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="marketsage-app"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: marketsage
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+          
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="marketsage-app",status=~"5.."}[5m]) / rate(http_requests_total{job="marketsage-app"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: marketsage
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+          
+  - name: marketsage.ai
+    interval: 30s
+    rules:
+      # AI/ML Performance Alerts
+      - alert: AIModelLowAccuracy
+        expr: ai_model_accuracy < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: marketsage-ai
+        annotations:
+          summary: "AI model accuracy is low"
+          description: "Model {{ $labels.model_id }} accuracy is {{ $value | humanizePercentage }}"
+          
+      - alert: AIHighLatency
+        expr: ai_prediction_latency_seconds > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: marketsage-ai
+        annotations:
+          summary: "AI prediction latency is high"
+          description: "AI prediction latency is {{ $value }}s for model {{ $labels.model_id }}"
+          
+      - alert: AIModelDrift
+        expr: ai_model_drift_score > 0.5
+        for: 10m
+        labels:
+          severity: critical
+          service: marketsage-ai
+        annotations:
+          summary: "AI model drift detected"
+          description: "Model {{ $labels.model_id }} drift score is {{ $value }}"
+          
+  - name: marketsage.database
+    interval: 60s
+    rules:
+      # Database Health Alerts
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL database has been down for more than 1 minute"
+          
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: postgres
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value | humanizePercentage }}"
+          
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache has been down for more than 1 minute"
+          
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_config_maxmemory > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+          
+  - name: marketsage.infrastructure
+    interval: 60s
+    rules:
+      # Container and Infrastructure Alerts
+      - alert: HighContainerCPU
+        expr: rate(container_cpu_usage_seconds_total{name=~"marketsage.*"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: docker
+        annotations:
+          summary: "High CPU usage in container"
+          description: "Container {{ $labels.name }} CPU usage is {{ $value | humanizePercentage }}"
+          
+      - alert: HighContainerMemory
+        expr: container_memory_usage_bytes{name=~"marketsage.*"} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: docker
+        annotations:
+          summary: "High memory usage in container"
+          description: "Container {{ $labels.name }} memory usage is {{ $value | humanizePercentage }}"
+          
+      - alert: ContainerRestarting
+        expr: increase(container_start_time_seconds{name=~"marketsage.*"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: docker
+        annotations:
+          summary: "Container restarted"
+          description: "Container {{ $labels.name }} has restarted"
+          
+  - name: marketsage.campaigns
+    interval: 60s
+    rules:
+      # Campaign-specific Alerts
+      - alert: HighEmailBounceRate
+        expr: email_bounce_rate > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: email-campaigns
+        annotations:
+          summary: "High email bounce rate"
+          description: "Email bounce rate is {{ $value | humanizePercentage }} for campaign {{ $labels.campaign_id }}"
+          
+      - alert: SMSDeliveryFailure
+        expr: sms_delivery_failure_rate > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: sms-campaigns
+        annotations:
+          summary: "High SMS delivery failure rate"
+          description: "SMS delivery failure rate is {{ $value | humanizePercentage }}"
+          
+      - alert: WhatsAppAPILimit
+        expr: whatsapp_api_rate_limit_reached > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: whatsapp-campaigns
+        annotations:
+          summary: "WhatsApp API rate limit reached"
+          description: "WhatsApp API rate limit has been reached"
+          
+  - name: marketsage.business
+    interval: 300s
+    rules:
+      # Business Logic Alerts
+      - alert: LowConversionRate
+        expr: conversion_rate < 0.02
+        for: 15m
+        labels:
+          severity: warning
+          service: conversions
+        annotations:
+          summary: "Low conversion rate detected"
+          description: "Conversion rate is {{ $value | humanizePercentage }}"
+          
+      - alert: HighChurnPrediction
+        expr: predicted_churn_rate > 0.15
+        for: 30m
+        labels:
+          severity: warning
+          service: ai-predictions
+        annotations:
+          summary: "High churn rate predicted"
+          description: "Predicted churn rate is {{ $value | humanizePercentage }}"
+          
+      - alert: UnusualTrafficPattern
+        expr: |
+          abs(
+            (rate(http_requests_total{job="marketsage-app"}[1h]) - 
+             rate(http_requests_total{job="marketsage-app"}[1h] offset 24h)) /
+            rate(http_requests_total{job="marketsage-app"}[1h] offset 24h)
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: info
+          service: marketsage
+        annotations:
+          summary: "Unusual traffic pattern detected"
+          description: "Traffic is {{ $value | humanizePercentage }} different from same time yesterday" 
