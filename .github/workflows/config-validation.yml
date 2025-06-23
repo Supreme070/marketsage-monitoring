@@ -25,20 +25,17 @@ jobs:
       
       - name: Validate Prometheus Configuration
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/config:/config \
-            --entrypoint promtool \
-            prom/prometheus:latest \
-            check config /config/prometheus.yml
+          docker run --rm -v ${{ github.workspace }}/config:/config --entrypoint promtool prom/prometheus:latest check config /config/prometheus.yml
+          echo "✅ Prometheus configuration is valid"
 
       - name: Validate Alert Rules
         run: |
           if [ -f "config/rules/marketsage-alerts.yml" ]; then
-            docker run --rm \
-              -v ${{ github.workspace }}/config/rules:/rules \
-              --entrypoint promtool \
-              prom/prometheus:latest \
-              check rules /rules/marketsage-alerts.yml
+            docker run --rm -v ${{ github.workspace }}/config/rules:/rules --entrypoint promtool prom/prometheus:latest check rules /rules/marketsage-alerts.yml
+            echo "✅ Alert rules are valid"
+          else
+            echo "❌ Alert rules file not found"
+            exit 1
           fi
 
   validate-loki:
@@ -78,11 +75,8 @@ jobs:
       
       - name: Validate Alertmanager Configuration
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/config:/config \
-            --entrypoint amtool \
-            prom/alertmanager:latest \
-            check-config /config/alertmanager.yml
+          docker run --rm -v ${{ github.workspace }}/config:/config --entrypoint amtool prom/alertmanager:latest check-config /config/alertmanager.yml
+          echo "✅ Alertmanager configuration is valid"
 
   validate-grafana:
     name: Validate Grafana Assets
