@@ -1,0 +1,74 @@
+# Multi-stage Dockerfile for MarketSage Monitoring Stack
+# This creates a single image containing all monitoring configurations
+FROM alpine:latest as config-builder
+
+# Install tools needed for configuration validation
+RUN apk add --no-cache \
+    curl \
+    jq \
+    yq
+
+# Copy all configuration files
+COPY config/ /app/config/
+COPY alloy/ /app/alloy/
+COPY grafana/ /app/grafana/
+COPY scripts/ /app/scripts/
+COPY docker-compose.yml /app/
+COPY .env.example /app/
+
+# Validate configurations during build
+RUN echo "Validating configurations..." && \
+    # Validate JSON files
+    for json_file in /app/grafana/dashboards/*.json; do \
+        if [ -f "$json_file" ]; then \
+            echo "Validating $json_file" && \
+            jq empty "$json_file" || exit 1; \
+        fi; \
+    done && \
+    # Validate YAML files
+    for yaml_file in /app/config/*.yml; do \
+        if [ -f "$yaml_file" ]; then \
+            echo "Validating $yaml_file" && \
+            yq eval . "$yaml_file" > /dev/null || exit 1; \
+        fi; \
+    done && \
+    echo "✅ All configurations validated successfully"
+
+# Final stage - lightweight runtime image
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    docker-cli \
+    docker-compose \
+    curl \
+    bash \
+    jq
+
+# Create monitoring user
+RUN addgroup -g 1000 monitoring && \
+    adduser -D -u 1000 -G monitoring monitoring
+
+# Create necessary directories
+RUN mkdir -p /monitoring/{config,data,logs} && \
+    chown -R monitoring:monitoring /monitoring
+
+# Copy validated configurations from builder stage
+COPY --from=config-builder --chown=monitoring:monitoring /app/ /monitoring/
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Switch to monitoring user
+USER monitoring
+WORKDIR /monitoring
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+EXPOSE 3000 9090 3100 9093 12345
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["docker-compose", "up", "-d"]

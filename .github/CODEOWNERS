@@ -1,0 +1,25 @@
+# MarketSage Monitoring Code Owners
+# These owners will be requested for review when anyone opens a pull request.
+
+# Global owners
+* @monitoring-team @devops-team
+
+# Configuration files
+config/ @devops-team @sre-team
+alloy/ @monitoring-team @devops-team
+grafana/ @monitoring-team
+
+# Docker and deployment
+docker-compose.yml @devops-team
+Dockerfile* @devops-team
+.github/workflows/ @devops-team
+
+# Scripts and automation
+scripts/ @devops-team @sre-team
+
+# Security-sensitive files
+secrets.example/ @security-team @devops-team
+.env.example @devops-team
+
+# Documentation
+*.md @monitoring-team @devops-team

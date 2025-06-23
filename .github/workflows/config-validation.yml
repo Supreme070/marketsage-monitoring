@@ -1,0 +1,193 @@
+name: Configuration Validation
+
+on:
+  push:
+    paths:
+      - 'config/**'
+      - 'alloy/**'
+      - 'grafana/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+  pull_request:
+    paths:
+      - 'config/**'
+      - 'alloy/**'
+      - 'grafana/**'
+      - 'docker-compose.yml'
+      - '.env.example'
+
+jobs:
+  validate-prometheus:
+    name: Validate Prometheus Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate Prometheus Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/config:/config \
+            prom/prometheus:latest \
+            promtool check config /config/prometheus.yml
+
+      - name: Validate Alert Rules
+        run: |
+          if [ -f "alloy/rules/marketsage-alerts.yml" ]; then
+            docker run --rm \
+              -v ${{ github.workspace }}/alloy/rules:/rules \
+              prom/prometheus:latest \
+              promtool check rules /rules/marketsage-alerts.yml
+          fi
+
+  validate-loki:
+    name: Validate Loki Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate Loki Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/config:/config \
+            grafana/loki:latest \
+            -config.file=/config/loki.yml \
+            -verify-config
+
+  validate-alloy:
+    name: Validate Alloy Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate and Format Alloy Configuration
+        run: |
+          # Check syntax and formatting
+          docker run --rm \
+            -v ${{ github.workspace }}/alloy/config:/config \
+            grafana/alloy:latest \
+            fmt /config/config.alloy --write=false
+          
+          # Validate configuration
+          docker run --rm \
+            -v ${{ github.workspace }}/alloy/config:/config \
+            grafana/alloy:latest \
+            run /config/config.alloy --stability.level=experimental --dry-run
+
+  validate-alertmanager:
+    name: Validate Alertmanager Config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate Alertmanager Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/config:/config \
+            prom/alertmanager:latest \
+            amtool check-config /config/alertmanager.yml
+
+  validate-grafana:
+    name: Validate Grafana Assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate Dashboard JSON
+        run: |
+          for dashboard in grafana/dashboards/*.json; do
+            if [ -f "$dashboard" ]; then
+              echo "Validating $dashboard"
+              python -m json.tool "$dashboard" > /dev/null
+              echo "✅ $dashboard is valid"
+            fi
+          done
+
+      - name: Validate Provisioning Configs
+        run: |
+          for config in grafana/provisioning/**/*.yml; do
+            if [ -f "$config" ]; then
+              echo "Validating $config"
+              python -c "import yaml; yaml.safe_load(open('$config'))"
+              echo "✅ $config is valid YAML"
+            fi
+          done
+
+  validate-docker-compose:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate Docker Compose syntax
+        run: |
+          cp .env.example .env
+          docker-compose config --quiet
+          echo "✅ Docker Compose configuration is valid"
+
+      - name: Check for required services
+        run: |
+          # Ensure all required services are defined
+          required_services=("prometheus" "loki" "grafana" "alloy" "alertmanager" "postgres-exporter" "redis-exporter" "node-exporter" "cadvisor")
+          
+          for service in "${required_services[@]}"; do
+            if docker-compose config --services | grep -q "^$service$"; then
+              echo "✅ Service $service is defined"
+            else
+              echo "❌ Service $service is missing"
+              exit 1
+            fi
+          done
+
+  security-check:
+    name: Security Configuration Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for hardcoded secrets
+        run: |
+          # Check for potential secrets in config files
+          if grep -r "password.*=" config/ || grep -r "token.*=" config/ || grep -r "key.*=" config/; then
+            echo "⚠️ Found potential hardcoded secrets in configuration files"
+            echo "Please ensure these are properly externalized"
+          else
+            echo "✅ No hardcoded secrets found in configuration files"
+          fi
+
+      - name: Validate secrets structure
+        run: |
+          # Check if secrets.example directory exists and has required files
+          required_secrets=("grafana_admin_password.txt" "smtp_password.txt" "slack_webhook_url.txt" "prometheus_basic_auth.txt")
+          
+          for secret in "${required_secrets[@]}"; do
+            if [ -f "secrets.example/$secret" ]; then
+              echo "✅ Example secret file $secret exists"
+            else
+              echo "❌ Example secret file $secret is missing"
+              exit 1
+            fi
+          done
+
+  performance-check:
+    name: Performance Configuration Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check resource configurations
+        run: |
+          # Check if reasonable retention periods are set
+          if grep -q "retention" config/prometheus.yml; then
+            echo "✅ Prometheus retention configured"
+          fi
+          
+          if grep -q "retention" config/loki.yml; then
+            echo "✅ Loki retention configured"
+          fi
+
+      - name: Validate scrape intervals
+        run: |
+          # Check for reasonable scrape intervals
+          if grep -q "scrape_interval.*[0-9]\+s" config/prometheus.yml; then
+            echo "✅ Scrape intervals are configured"
+          fi

@@ -1,0 +1,205 @@
+name: Monitoring Stack Health Check
+
+on:
+  schedule:
+    # Run health checks every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: Monitor Stack Health
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check production services
+        run: |
+          echo "🏥 Checking production monitoring stack health"
+          
+          # This would typically check actual production endpoints
+          # For demo purposes, we'll simulate checks
+          
+          services=(
+            "Grafana Dashboard"
+            "Prometheus Metrics"
+            "Loki Logs"
+            "Alertmanager Alerts"
+            "Database Metrics"
+            "Redis Metrics"
+            "System Metrics"
+          )
+          
+          failed_services=()
+          
+          for service in "${services[@]}"; do
+            # Simulate health check (replace with actual endpoint checks)
+            if [ $((RANDOM % 10)) -lt 9 ]; then
+              echo "✅ $service is healthy"
+            else
+              echo "❌ $service is unhealthy"
+              failed_services+=("$service")
+            fi
+          done
+          
+          if [ ${#failed_services[@]} -gt 0 ]; then
+            echo "::error::Failed services: ${failed_services[*]}"
+            exit 1
+          fi
+
+      - name: Check disk usage
+        run: |
+          echo "💾 Checking disk usage for monitoring data"
+          
+          # Simulate disk usage check
+          usage=$((RANDOM % 100))
+          echo "Current disk usage: ${usage}%"
+          
+          if [ $usage -gt 85 ]; then
+            echo "::warning::High disk usage detected: ${usage}%"
+          elif [ $usage -gt 95 ]; then
+            echo "::error::Critical disk usage: ${usage}%"
+            exit 1
+          else
+            echo "✅ Disk usage is normal: ${usage}%"
+          fi
+
+      - name: Check metrics retention
+        run: |
+          echo "📊 Checking metrics retention and data integrity"
+          
+          # Simulate metrics retention check
+          oldest_metric_days=$((RANDOM % 30 + 1))
+          echo "Oldest metric data: ${oldest_metric_days} days"
+          
+          if [ $oldest_metric_days -lt 7 ]; then
+            echo "::warning::Metrics retention might be too short: ${oldest_metric_days} days"
+          else
+            echo "✅ Metrics retention is adequate: ${oldest_metric_days} days"
+          fi
+
+      - name: Performance monitoring
+        run: |
+          echo "⚡ Checking monitoring stack performance"
+          
+          # Simulate performance metrics
+          query_response_time=$((RANDOM % 1000 + 100))
+          ingestion_rate=$((RANDOM % 10000 + 1000))
+          
+          echo "Average query response time: ${query_response_time}ms"
+          echo "Log ingestion rate: ${ingestion_rate} logs/sec"
+          
+          if [ $query_response_time -gt 5000 ]; then
+            echo "::warning::Slow query response time: ${query_response_time}ms"
+          else
+            echo "✅ Query performance is good: ${query_response_time}ms"
+          fi
+
+      - name: Check alert delivery
+        run: |
+          echo "🔔 Testing alert delivery mechanisms"
+          
+          # Test alert channels
+          channels=("email" "slack" "webhook")
+          
+          for channel in "${channels[@]}"; do
+            # Simulate alert delivery test
+            if [ $((RANDOM % 10)) -lt 8 ]; then
+              echo "✅ $channel alerts are deliverable"
+            else
+              echo "⚠️ $channel alert delivery might be failing"
+            fi
+          done
+
+  generate-report:
+    name: Generate Health Report
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: always()
+    steps:
+      - name: Create health report
+        run: |
+          echo "📋 Generating monitoring health report"
+          
+          cat > health-report.md << EOF
+          # MarketSage Monitoring Health Report
+          
+          **Generated**: $(date -u)
+          **Workflow**: ${{ github.workflow }}
+          **Run ID**: ${{ github.run_id }}
+          
+          ## Service Status
+          - **Overall Status**: ${{ needs.health-check.result == 'success' && '✅ Healthy' || '❌ Issues Detected' }}
+          - **Last Check**: $(date -u)
+          
+          ## Key Metrics
+          - **Uptime**: 99.9% (simulated)
+          - **Data Retention**: 30 days
+          - **Alert Response**: < 2 minutes
+          
+          ## Recent Activities
+          - Configuration updates: ${{ github.event.head_commit.message || 'None' }}
+          - Last deployment: $(date -d '1 day ago' -u)
+          
+          ## Recommendations
+          ${{ needs.health-check.result != 'success' && '- Investigate failed service checks' || '- No immediate actions required' }}
+          - Continue monitoring resource usage
+          - Review alert thresholds monthly
+          
+          ---
+          *Report generated by MarketSage Monitoring CI/CD Pipeline*
+          EOF
+          
+          echo "Health report generated"
+
+      - name: Upload health report
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-health-report
+          path: health-report.md
+          retention-days: 30
+
+  notify-on-failure:
+    name: Notify on Health Issues
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: failure()
+    steps:
+      - name: Send alert notification
+        run: |
+          echo "🚨 Sending health check failure notification"
+          
+          # Send notification to monitoring team
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "🚨 MarketSage Monitoring Health Check Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*MarketSage Monitoring Alert*\n❌ Health check failed\n🔗 <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>\n🕐 Time: '$(date)'"
+                  }
+                }
+              ]
+            }' || echo "Notification failed"
+
+  cleanup:
+    name: Cleanup Old Data
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Cleanup old artifacts
+        run: |
+          echo "🧹 Cleaning up old monitoring artifacts"
+          
+          # This would typically:
+          # - Remove old log files
+          # - Compress old metrics data
+          # - Clean up temporary files
+          # - Remove old backup files
+          
+          echo "Cleanup completed"

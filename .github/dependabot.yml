@@ -1,0 +1,42 @@
+# Dependabot configuration for MarketSage Monitoring
+version: 2
+updates:
+  # Monitor Docker base images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    target-branch: "develop"
+    reviewers:
+      - "monitoring-team"
+    assignees:
+      - "devops-team"
+    commit-message:
+      prefix: "docker"
+      prefix-development: "docker"
+      include: "scope"
+
+  # Monitor GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    target-branch: "develop"
+    reviewers:
+      - "devops-team"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Monitor any Python dependencies (for scripts)
+  - package-ecosystem: "pip"
+    directory: "/scripts"
+    schedule:
+      interval: "weekly"
+    target-branch: "develop"
+    reviewers:
+      - "monitoring-team"

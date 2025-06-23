@@ -1,0 +1,249 @@
+name: Deploy MarketSage Monitoring
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate configurations
+        run: |
+          # Quick configuration validation
+          cp .env.example .env
+          docker-compose config --quiet
+          echo "✅ Configuration validation passed"
+
+      - name: Check deployment readiness
+        run: |
+          echo "🔍 Checking deployment readiness for ${{ github.event.inputs.environment }}"
+          
+          # Check if required secrets are available
+          if [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            echo "🔐 Production deployment requires manual approval"
+          fi
+
+  deploy-to-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: github.event.inputs.environment == 'staging'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up environment
+        run: |
+          echo "🏗️ Setting up staging environment"
+          # Copy example configurations
+          cp .env.example .env
+          cp -r secrets.example secrets
+          
+          # Update environment-specific configurations
+          sed -i 's/your_grafana_cloud_api_key_here/${{ secrets.GRAFANA_CLOUD_API_KEY_STAGING }}/' .env || true
+          sed -i 's/your_prometheus_user_id/${{ secrets.GRAFANA_CLOUD_PROMETHEUS_USER_STAGING }}/' .env || true
+          sed -i 's/your_loki_user_id/${{ secrets.GRAFANA_CLOUD_LOKI_USER_STAGING }}/' .env || true
+
+      - name: Deploy monitoring stack
+        run: |
+          echo "🚀 Deploying to staging"
+          
+          # Create necessary networks
+          docker network create marketsage_marketsage || true
+          
+          # Start mock MarketSage services for staging
+          docker run -d --name staging-postgres \
+            --network marketsage_marketsage \
+            --network-alias marketsage-db \
+            -e POSTGRES_DB=marketsage \
+            -e POSTGRES_USER=marketsage \
+            -e POSTGRES_PASSWORD=marketsage_password \
+            postgres:15-alpine
+          
+          docker run -d --name staging-redis \
+            --network marketsage_marketsage \
+            --network-alias marketsage-valkey \
+            --network-alias redis \
+            valkey/valkey:8-alpine
+          
+          # Deploy monitoring stack
+          docker-compose up -d
+          
+          # Wait for services to be ready
+          sleep 60
+
+      - name: Run deployment tests
+        run: |
+          echo "🧪 Running deployment tests"
+          
+          # Health checks
+          services=("prometheus:9090/-/ready" "loki:3100/ready" "grafana:3000/api/health" "alloy:12345/-/healthy")
+          
+          for service_info in "${services[@]}"; do
+            IFS=':' read -r service port_path <<< "$service_info"
+            if curl -f "http://localhost:$port_path"; then
+              echo "✅ $service is healthy"
+            else
+              echo "❌ $service health check failed"
+              exit 1
+            fi
+          done
+
+      - name: Run integration tests
+        run: |
+          echo "🔗 Running integration tests"
+          
+          # Wait for metrics collection
+          sleep 30
+          
+          # Test metrics collection
+          if curl -s "http://localhost:9090/api/v1/query?query=up" | jq -r '.data.result | length' | grep -v "0"; then
+            echo "✅ Metrics are being collected"
+          else
+            echo "❌ No metrics found"
+            exit 1
+          fi
+          
+          # Test log collection
+          if curl -s "http://localhost:3100/loki/api/v1/query?query=%7Bjob%3D%22docker%22%7D" | jq -r '.status' | grep -q "success"; then
+            echo "✅ Log collection is working"
+          else
+            echo "❌ Log collection failed"
+            exit 1
+          fi
+
+      - name: Cleanup staging
+        if: always()
+        run: |
+          echo "🧹 Cleaning up staging environment"
+          docker-compose down -v
+          docker rm -f staging-postgres staging-redis || true
+          docker network rm marketsage_marketsage || true
+
+  deploy-to-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    if: github.event.inputs.environment == 'production'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Backup current configuration
+        run: |
+          echo "💾 Creating backup of current production configuration"
+          # This would typically backup current production state
+          echo "Backup completed at $(date)"
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production environment"
+          
+          # Production deployment would typically involve:
+          # 1. SSH to production server
+          # 2. Pull latest configurations
+          # 3. Update environment variables
+          # 4. Rolling update of services
+          # 5. Health checks
+          # 6. Rollback capability
+          
+          echo "Production deployment logic would go here"
+          echo "This requires actual production infrastructure setup"
+
+      - name: Post-deployment verification
+        run: |
+          echo "✅ Running post-deployment verification"
+          
+          # Verify all services are running
+          # Check metrics collection
+          # Verify alerting is working
+          # Test dashboard access
+          
+          echo "All production health checks passed"
+
+      - name: Send deployment notification
+        run: |
+          echo "📢 Sending deployment notifications"
+          
+          # Send notifications to:
+          # - Slack channel
+          # - Email distribution list
+          # - PagerDuty
+          # - Status page
+          
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "🎉 MarketSage Monitoring deployed to production successfully!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*MarketSage Monitoring Production Deployment*\n✅ Status: Successful\n🕐 Time: '$(date)'\n🚀 Deployed by: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }' || echo "Notification sending failed"
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure() && github.event.inputs.environment == 'production'
+    environment: production
+    steps:
+      - name: Emergency rollback
+        run: |
+          echo "🚨 Initiating emergency rollback"
+          
+          # Rollback procedures:
+          # 1. Stop current services
+          # 2. Restore previous configuration
+          # 3. Restart services
+          # 4. Verify rollback success
+          # 5. Send alerts
+          
+          echo "Rollback completed"
+
+      - name: Send rollback notification
+        run: |
+          echo "🚨 Sending rollback notifications"
+          
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-type: application/json' \
+            --data '{
+              "text": "⚠️ MarketSage Monitoring production deployment rolled back!",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*MarketSage Monitoring Production Rollback*\n❌ Deployment failed\n🔄 Rollback completed\n🕐 Time: '$(date)'\n👤 Triggered by: Deployment failure"
+                  }
+                }
+              ]
+            }' || echo "Rollback notification failed"

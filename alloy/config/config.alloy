@@ -13,7 +13,7 @@ prometheus.scrape "marketsage_app" {
 	}]
 	scrape_interval = "15s"
 	metrics_path    = "/metrics"
-	forward_to      = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.local_prometheus.receiver]
+	forward_to      = [prometheus.remote_write.local_prometheus.receiver]
 }
 
 // Scrape PostgreSQL Exporter metrics
@@ -23,7 +23,7 @@ prometheus.scrape "postgres" {
 		job         = "postgres",
 	}]
 	scrape_interval = "30s"
-	forward_to      = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.local_prometheus.receiver]
+	forward_to      = [prometheus.remote_write.local_prometheus.receiver]
 }
 
 // Scrape Redis Exporter metrics
@@ -33,7 +33,7 @@ prometheus.scrape "redis" {
 		job         = "redis",
 	}]
 	scrape_interval = "30s"
-	forward_to      = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.local_prometheus.receiver]
+	forward_to      = [prometheus.remote_write.local_prometheus.receiver]
 }
 
 // Scrape cAdvisor metrics
@@ -44,7 +44,7 @@ prometheus.scrape "cadvisor" {
 	}]
 	scrape_interval = "30s"
 	metrics_path    = "/metrics"
-	forward_to      = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.local_prometheus.receiver]
+	forward_to      = [prometheus.remote_write.local_prometheus.receiver]
 }
 
 // Scrape Node Exporter metrics
@@ -54,7 +54,7 @@ prometheus.scrape "node" {
 		job         = "node",
 	}]
 	scrape_interval = "30s"
-	forward_to      = [prometheus.remote_write.grafana_cloud.receiver, prometheus.remote_write.local_prometheus.receiver]
+	forward_to      = [prometheus.remote_write.local_prometheus.receiver]
 }
 
 // Send metrics to Grafana Cloud
@@ -112,7 +112,7 @@ loki.process "application_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 2. SYSTEM LOGS - System-level logs from host
@@ -139,7 +139,7 @@ loki.process "system_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 3. SECURITY LOGS - Authentication and security events
@@ -178,7 +178,7 @@ loki.process "security_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 4. ERROR LOGS - Application and system errors
@@ -203,7 +203,7 @@ loki.process "error_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 5. ACCESS LOGS - Web server and application access
@@ -230,7 +230,7 @@ loki.process "access_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 6. DATABASE LOGS - PostgreSQL and Redis logs
@@ -255,7 +255,7 @@ loki.process "database_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 7. PERFORMANCE LOGS - Application performance metrics and slow queries
@@ -279,7 +279,7 @@ loki.process "performance_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // 8. BUSINESS LOGS - Application-specific business logic events
@@ -312,7 +312,7 @@ loki.process "business_logs" {
 		}
 	}
 	
-	forward_to = [loki.write.grafana_cloud.receiver, loki.write.local_loki.receiver]
+	forward_to = [loki.write.local_loki.receiver]
 }
 
 // Send logs to Grafana Cloud Loki

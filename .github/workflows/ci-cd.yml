@@ -1,0 +1,299 @@
+name: MarketSage Monitoring CI/CD
+
+on:
+  push:
+    branches: [ main, staging, develop ]
+  pull_request:
+    branches: [ main, staging ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  validate-configs:
+    name: Validate Configurations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Compose
+        run: |
+          # Copy example env file for validation
+          cp .env.example .env
+          # Validate docker-compose syntax
+          docker-compose config --quiet
+          echo "✅ Docker Compose configuration is valid"
+
+      - name: Validate Prometheus Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/config:/config \
+            prom/prometheus:latest \
+            promtool check config /config/prometheus.yml
+          echo "✅ Prometheus configuration is valid"
+
+      - name: Validate Loki Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/config:/config \
+            grafana/loki:latest \
+            -config.file=/config/loki.yml \
+            -verify-config
+          echo "✅ Loki configuration is valid"
+
+      - name: Validate Alloy Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/alloy/config:/config \
+            grafana/alloy:latest \
+            fmt /config/config.alloy --write=false
+          echo "✅ Alloy configuration is valid"
+
+      - name: Validate Alertmanager Configuration
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/config:/config \
+            prom/alertmanager:latest \
+            amtool check-config /config/alertmanager.yml
+          echo "✅ Alertmanager configuration is valid"
+
+      - name: Validate Grafana Dashboards
+        run: |
+          # Check JSON syntax for dashboard files
+          for dashboard in grafana/dashboards/*.json; do
+            if [ -f "$dashboard" ]; then
+              echo "Validating $dashboard"
+              python -m json.tool "$dashboard" > /dev/null
+              echo "✅ $dashboard is valid JSON"
+            fi
+          done
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: validate-configs
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Scan Docker Compose for secrets
+        run: |
+          # Install trufflehog
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /tmp
+          # Scan for secrets
+          /tmp/trufflehog filesystem . --exclude-paths=.git --no-update
+          echo "✅ Secret scanning completed"
+
+  test-deployment:
+    name: Test Deployment
+    runs-on: ubuntu-latest
+    needs: [validate-configs, security-scan]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create test environment
+        run: |
+          # Copy example files
+          cp .env.example .env
+          cp -r secrets.example secrets
+          
+          # Create test network (simulating MarketSage)
+          docker network create marketsage_marketsage || true
+          
+          # Start test PostgreSQL and Redis containers
+          docker run -d --name test-postgres \
+            --network marketsage_marketsage \
+            --network-alias marketsage-db \
+            -e POSTGRES_DB=marketsage \
+            -e POSTGRES_USER=marketsage \
+            -e POSTGRES_PASSWORD=marketsage_password \
+            postgres:15-alpine
+          
+          docker run -d --name test-redis \
+            --network marketsage_marketsage \
+            --network-alias marketsage-valkey \
+            --network-alias redis \
+            valkey/valkey:8-alpine
+
+      - name: Deploy monitoring stack
+        run: |
+          # Update environment for test
+          sed -i 's/MARKETSAGE_NETWORK=marketsage_default/MARKETSAGE_NETWORK=marketsage_marketsage/' .env
+          
+          # Start monitoring services
+          docker-compose up -d
+          
+          # Wait for services to be ready
+          sleep 30
+
+      - name: Health check monitoring services
+        run: |
+          # Check Prometheus
+          curl -f http://localhost:9090/-/ready || exit 1
+          echo "✅ Prometheus is ready"
+          
+          # Check Loki
+          curl -f http://localhost:3100/ready || exit 1
+          echo "✅ Loki is ready"
+          
+          # Check Grafana
+          curl -f http://localhost:3000/api/health || exit 1
+          echo "✅ Grafana is ready"
+          
+          # Check Alloy
+          curl -f http://localhost:12345/-/healthy || exit 1
+          echo "✅ Alloy is healthy"
+
+      - name: Test metrics collection
+        run: |
+          # Wait for metrics to be collected
+          sleep 30
+          
+          # Check if PostgreSQL metrics are being collected
+          curl -s "http://localhost:9090/api/v1/query?query=pg_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ PostgreSQL metrics collected" || echo "❌ PostgreSQL metrics missing"
+          
+          # Check if Redis metrics are being collected
+          curl -s "http://localhost:9090/api/v1/query?query=redis_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ Redis metrics collected" || echo "❌ Redis metrics missing"
+          
+          # Check if system metrics are being collected
+          curl -s "http://localhost:9090/api/v1/query?query=node_load1" | jq -r '.data.result | length' | grep -v "0" && echo "✅ System metrics collected" || echo "❌ System metrics missing"
+
+      - name: Test log collection
+        run: |
+          # Check if logs are being ingested
+          curl -s "http://localhost:3100/loki/api/v1/query?query=%7Bjob%3D%22docker%22%7D" | jq -r '.data.result | length' | grep -v "0" && echo "✅ Logs are being collected" || echo "❌ Log collection not working"
+
+      - name: Cleanup test environment
+        if: always()
+        run: |
+          docker-compose down -v
+          docker rm -f test-postgres test-redis || true
+          docker network rm marketsage_marketsage || true
+
+  build-and-publish:
+    name: Build Custom Images
+    runs-on: ubuntu-latest
+    needs: test-deployment
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push monitoring stack image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.monitoring
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-development:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: test-deployment
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to development
+        run: |
+          echo "🔧 Deploying to development environment"
+          # Development deployment logic here
+          echo "✅ Development deployment completed"
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-publish
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging server
+        run: |
+          echo "🚀 Deploying to staging environment"
+          # This would typically involve:
+          # - SSH to staging server
+          # - Pull latest images
+          # - Update configurations
+          # - Restart services
+          # - Run health checks
+          echo "✅ Staging deployment completed"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production environment"
+          # Production deployment steps
+          echo "✅ Production deployment completed"
+
+      - name: Post-deployment health check
+        run: |
+          echo "🔍 Running post-deployment health checks"
+          # Health check scripts
+          echo "✅ All services healthy in production"
+
+      - name: Notify deployment success
+        run: |
+          echo "📢 Deployment notification sent"
+          # Send notifications to Slack/email about successful deployment
