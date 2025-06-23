@@ -302,7 +302,7 @@ jobs:
     name: Build Custom Images
     runs-on: ubuntu-latest
     needs: test-deployment
-    if: github.ref == 'refs/heads/main'
+    if: false  # Disabled: Container registry permissions not configured
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -357,7 +357,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
-    needs: build-and-publish
+    needs: test-deployment
     if: github.ref == 'refs/heads/staging'
     environment: staging
     steps:
