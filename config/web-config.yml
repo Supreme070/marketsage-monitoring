@@ -1,5 +1,5 @@
 basic_auth_users:
-  admin: $2y$05$IOVh7COC/0a0xrwSkz/qNuzUR4EGwLSCN68rpPZgJscRJnNQh9Nm2
+  admin: $apr1$GamF4o6N$Zr5ybc4fZ14VpE5iD0QSd0
 
 # TLS disabled for now - enable after generating certificates
 # tls_server_config:
