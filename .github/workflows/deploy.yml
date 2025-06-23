@@ -55,6 +55,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Docker Compose
+        run: |
+          # Install Docker Compose v2 (docker compose)
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-plugin
+          # Create symlink for backward compatibility
+          sudo ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose || true
+          docker compose version
+
       - name: Set up environment
         run: |
           echo "🏗️ Setting up staging environment"
