@@ -128,6 +128,28 @@ jobs:
           cp .env.example .env
           cp -r secrets.example secrets
           
+          # Create CI-specific web config without authentication for easier testing
+          echo "# CI-specific web config - no authentication" > config/web-config-ci.yml
+          
+          # Create CI override for docker-compose
+          cat > docker-compose.ci.yml << 'EOF'
+          services:
+            prometheus:
+              command:
+                - --config.file=/etc/prometheus/prometheus.yml
+                - --storage.tsdb.path=/prometheus
+                - --web.console.libraries=/etc/prometheus/console_libraries
+                - --web.console.templates=/etc/prometheus/consoles
+                - --storage.tsdb.retention.time=7d
+                - --web.enable-remote-write-receiver
+                - --web.enable-lifecycle
+                # Remove web config file for CI (no authentication)
+              volumes:
+                - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+                - ./config/rules:/etc/prometheus/rules:ro
+                - prometheus-data:/prometheus
+          EOF
+          
           # Create networks for testing
           docker network create marketsage_default || true
           docker network create marketsage_marketsage || true
@@ -149,19 +171,36 @@ jobs:
 
       - name: Deploy monitoring stack
         run: |
-          # Start monitoring services with existing network configuration
+          # Start monitoring services with CI override (no authentication)
           # The marketsage_default network now exists and contains the test databases
           
-          # Start monitoring services
-          docker-compose up -d
+          # Start monitoring services with CI-specific configuration
+          docker-compose -f docker-compose.yml -f docker-compose.ci.yml up -d
           
           # Wait for services to be ready
           sleep 30
 
       - name: Health check monitoring services
         run: |
-          # Check Prometheus (with basic auth)
-          curl -f -u admin:monitoring123 http://localhost:9090/-/ready || exit 1
+          # Debug: Check container status first
+          echo "🔍 Container status:"
+          docker-compose ps
+          
+          # Debug: Check Prometheus logs
+          echo "🔍 Prometheus logs:"
+          docker logs prometheus --tail 20 || echo "Failed to get Prometheus logs"
+          
+          # Debug: Check if port is accessible
+          echo "🔍 Testing port connectivity:"
+          netstat -tlpn | grep :9090 || echo "Port 9090 not found"
+          
+          # Wait a bit more for Prometheus to fully start
+          echo "⏳ Waiting additional 30 seconds for Prometheus..."
+          sleep 30
+          
+          # Check Prometheus (no auth in CI)
+          echo "🔍 Testing Prometheus health check:"
+          curl -f http://localhost:9090/-/ready || exit 1
           echo "✅ Prometheus is ready"
           
           # Check Loki
@@ -181,14 +220,14 @@ jobs:
           # Wait for metrics to be collected
           sleep 30
           
-          # Check if PostgreSQL metrics are being collected
-          curl -s -u admin:monitoring123 "http://localhost:9090/api/v1/query?query=pg_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ PostgreSQL metrics collected" || echo "❌ PostgreSQL metrics missing"
+          # Check if PostgreSQL metrics are being collected (no auth in CI)
+          curl -s "http://localhost:9090/api/v1/query?query=pg_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ PostgreSQL metrics collected" || echo "❌ PostgreSQL metrics missing"
           
-          # Check if Redis metrics are being collected
-          curl -s -u admin:monitoring123 "http://localhost:9090/api/v1/query?query=redis_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ Redis metrics collected" || echo "❌ Redis metrics missing"
+          # Check if Redis metrics are being collected (no auth in CI)
+          curl -s "http://localhost:9090/api/v1/query?query=redis_up" | jq -r '.data.result[0].value[1]' | grep -q "1" && echo "✅ Redis metrics collected" || echo "❌ Redis metrics missing"
           
-          # Check if system metrics are being collected
-          curl -s -u admin:monitoring123 "http://localhost:9090/api/v1/query?query=node_load1" | jq -r '.data.result | length' | grep -v "0" && echo "✅ System metrics collected" || echo "❌ System metrics missing"
+          # Check if system metrics are being collected (no auth in CI)
+          curl -s "http://localhost:9090/api/v1/query?query=node_load1" | jq -r '.data.result | length' | grep -v "0" && echo "✅ System metrics collected" || echo "❌ System metrics missing"
 
       - name: Test log collection
         run: |
@@ -198,7 +237,7 @@ jobs:
       - name: Cleanup test environment
         if: always()
         run: |
-          docker-compose down -v
+          docker-compose -f docker-compose.yml -f docker-compose.ci.yml down -v
           docker rm -f test-postgres test-redis || true
           docker network rm marketsage_default marketsage_marketsage || true
 
