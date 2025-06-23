@@ -148,11 +148,19 @@ jobs:
 
       - name: Deploy monitoring stack
         run: |
-          # Update environment for test
-          sed -i 's/MARKETSAGE_NETWORK=marketsage_default/MARKETSAGE_NETWORK=marketsage_marketsage/' .env
+          # Connect monitoring services to the existing MarketSage network
+          # We'll use the default network config and manually connect services after startup
           
           # Start monitoring services
           docker-compose up -d
+          
+          # Connect monitoring services to the marketsage_marketsage network for integration
+          docker network connect marketsage_marketsage prometheus || true
+          docker network connect marketsage_marketsage loki || true
+          docker network connect marketsage_marketsage grafana || true
+          docker network connect marketsage_marketsage alloy || true
+          docker network connect marketsage_marketsage postgres-exporter || true
+          docker network connect marketsage_marketsage redis-exporter || true
           
           # Wait for services to be ready
           sleep 30
