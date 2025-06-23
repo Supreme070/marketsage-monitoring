@@ -41,11 +41,7 @@ jobs:
 
       - name: Validate Prometheus Configuration
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/config:/config \
-            --entrypoint promtool \
-            prom/prometheus:latest \
-            check config /config/prometheus.yml
+          docker run --rm -v ${{ github.workspace }}/config:/config --entrypoint promtool prom/prometheus:latest check config /config/prometheus.yml
           echo "✅ Prometheus configuration is valid"
 
       - name: Validate Loki Configuration
@@ -67,11 +63,7 @@ jobs:
 
       - name: Validate Alertmanager Configuration
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/config:/config \
-            --entrypoint amtool \
-            prom/alertmanager:latest \
-            check-config /config/alertmanager.yml
+          docker run --rm -v ${{ github.workspace }}/config:/config --entrypoint amtool prom/alertmanager:latest check-config /config/alertmanager.yml
           echo "✅ Alertmanager configuration is valid"
 
       - name: Validate Grafana Dashboards
