@@ -5,100 +5,169 @@
     "timezone": "browser",
     "panels": [
       {
+        "id": 9,
+        "title": "Loki Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "loki_build_info",
+            "legendFormat": "Loki Running",
+            "datasource": "Prometheus"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "green", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Container Log Sources",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "count by (job) (up)",
+            "legendFormat": "{{job}}",
+            "datasource": "Prometheus"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0},
+        "options": {
+          "pieType": "pie",
+          "legend": {"displayMode": "visible", "placement": "right"}
+        }
+      },
+      {
+        "id": 11,
+        "title": "Monitoring Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count(up == 1)",
+            "legendFormat": "Services Up",
+            "datasource": "Prometheus"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 8}
+              ]
+            }
+          }
+        }
+      },
+      {
         "id": 1,
         "title": "1. Application Logs",
         "type": "logs",
         "targets": [
           {
-            "expr": "{job=\"docker\"}",
-            "datasource": "Loki"
-          }
-        ],
-        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 0}
-      },
-      {
-        "id": 2,
-        "title": "2. System Logs",
-        "type": "logs",
-        "targets": [
-          {
-            "expr": "{job=\"system\"}",
-            "datasource": "Loki"
-          }
-        ],
-        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 0}
-      },
-      {
-        "id": 3,
-        "title": "3. Security Logs",
-        "type": "logs",
-        "targets": [
-          {
-            "expr": "{job=\"security\"}",
+            "expr": "{service_name=\"unknown_service\"}",
             "datasource": "Loki"
           }
         ],
         "gridPos": {"h": 6, "w": 12, "x": 0, "y": 6}
       },
       {
-        "id": 4,
-        "title": "4. Error Logs",
+        "id": 2,
+        "title": "2. MarketSage Container Logs",
         "type": "logs",
         "targets": [
           {
-            "expr": "{job=\"errors\"}",
+            "expr": "{service_name=\"unknown_service\"} |~ \"marketsage\"",
             "datasource": "Loki"
           }
         ],
         "gridPos": {"h": 6, "w": 12, "x": 12, "y": 6}
       },
       {
-        "id": 5,
-        "title": "5. Access Logs",
+        "id": 3,
+        "title": "3. Error Logs",
         "type": "logs",
         "targets": [
           {
-            "expr": "{job=\"access\"}",
+            "expr": "{service_name=\"unknown_service\"} |~ \"(?i)error|exception|fail\"",
             "datasource": "Loki"
           }
         ],
         "gridPos": {"h": 6, "w": 12, "x": 0, "y": 12}
       },
       {
-        "id": 6,
-        "title": "6. Database Logs",
+        "id": 4,
+        "title": "4. Database Connection Logs",
         "type": "logs",
         "targets": [
           {
-            "expr": "{job=\"database\"}",
+            "expr": "{service_name=\"unknown_service\"} |~ \"(?i)postgres|redis|database|connection\"",
             "datasource": "Loki"
           }
         ],
         "gridPos": {"h": 6, "w": 12, "x": 12, "y": 12}
       },
       {
-        "id": 7,
-        "title": "7. Performance Logs",
+        "id": 5,
+        "title": "5. HTTP/Access Logs",
         "type": "logs",
         "targets": [
           {
-            "expr": "{job=\"performance\"}",
+            "expr": "{service_name=\"unknown_service\"} |~ \"(?i)GET|POST|PUT|DELETE|HTTP|access|request\"",
             "datasource": "Loki"
           }
         ],
         "gridPos": {"h": 6, "w": 12, "x": 0, "y": 18}
       },
       {
-        "id": 8,
-        "title": "8. Business Logs",
+        "id": 6,
+        "title": "6. Monitoring Stack Logs",
         "type": "logs",
         "targets": [
           {
-            "expr": "{job=\"business\"}",
+            "expr": "{service_name=\"unknown_service\"} |~ \"(?i)prometheus|grafana|loki|alertmanager\"",
             "datasource": "Loki"
           }
         ],
         "gridPos": {"h": 6, "w": 12, "x": 12, "y": 18}
+      },
+      {
+        "id": 7,
+        "title": "7. Warning Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{service_name=\"unknown_service\"} |~ \"(?i)warn|warning|slow|timeout\"",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "8. All Recent Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{service_name=\"unknown_service\"}",
+            "datasource": "Loki"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 24}
       }
     ],
     "time": {"from": "now-1h", "to": "now"},

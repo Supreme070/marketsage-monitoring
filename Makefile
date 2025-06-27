@@ -29,6 +29,7 @@ start: ## Start the monitoring stack
 	@docker-compose up -d
 	@echo "⏳ Waiting for services to be ready..."
 	@sleep 30
+	@make sync-containers
 	@make health
 
 stop: ## Stop the monitoring stack
@@ -40,6 +41,15 @@ restart: ## Restart the monitoring stack
 	@make stop
 	@sleep 5
 	@make start
+
+sync-containers: ## Sync monitoring with current MarketSage container IDs
+	@echo "🔄 Syncing container IDs with MarketSage..."
+	@./update-container-ids.sh
+	@echo "✅ Container sync complete"
+
+post-rebuild: ## Run after MarketSage containers are rebuilt
+	@echo "🔧 Running post-rebuild sync..."
+	@./post-rebuild-hook.sh
 
 logs: ## Show logs from all services
 	@echo "📋 Showing logs from all services..."

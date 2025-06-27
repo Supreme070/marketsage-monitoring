@@ -21,7 +21,7 @@ services:
       - grafana_cloud_api_key
     networks:
       - monitoring
-      - ${MARKETSAGE_NETWORK:-marketsage_default}
+      - marketsage_default
     depends_on:
       - prometheus
       - loki
@@ -58,7 +58,7 @@ services:
       - prometheus_basic_auth
     networks:
       - monitoring
-      - ${MARKETSAGE_NETWORK:-marketsage_default}
+      - marketsage_default
     depends_on:
       - prometheus
       - loki
@@ -140,7 +140,7 @@ services:
       - DATA_SOURCE_NAME=postgresql://marketsage:${POSTGRES_PASSWORD:-password}@marketsage-db:5432/marketsage?sslmode=disable
     networks:
       - monitoring
-      - ${MARKETSAGE_NETWORK:-marketsage_default}
+      - marketsage_default
     depends_on:
       - prometheus
 
@@ -156,7 +156,7 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     networks:
       - monitoring
-      - ${MARKETSAGE_NETWORK:-marketsage_default}
+      - marketsage_default
     depends_on:
       - prometheus
 
@@ -236,4 +236,4 @@ networks:
   # External network for MarketSage connection
   marketsage_default:
     external: true
-    name: ${MARKETSAGE_NETWORK:-marketsage_default}
+    name: ${MARKETSAGE_NETWORK:-marketsage_marketsage}

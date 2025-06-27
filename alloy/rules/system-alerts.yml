@@ -1,0 +1,97 @@
+groups:
+  - name: system.critical
+    interval: 30s
+    rules:
+      # System Load Alert
+      - alert: HighSystemLoad
+        expr: node_load1 > 4.0
+        for: 2m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High system load detected"
+          description: "System load average (1m) is {{ $value }}, which is high"
+          
+      # Memory Usage Alert  
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+          
+      # Application Health Alert
+      - alert: MarketSageHealthCheckFailed
+        expr: up{job="marketsage-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: marketsage
+        annotations:
+          summary: "MarketSage health check failing"
+          description: "MarketSage application health check has been failing for over 1 minute"
+          
+  - name: database.alerts
+    interval: 60s
+    rules:
+      # PostgreSQL Connection Alert
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL exporter is down"
+          description: "Cannot collect PostgreSQL metrics - database may be down"
+          
+      # Redis Connection Alert
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis exporter is down"
+          description: "Cannot collect Redis metrics - cache may be down"
+          
+      # Redis Memory Growth
+      - alert: RedisMemoryGrowth
+        expr: increase(redis_memory_used_bytes[1h]) > 100000000  # 100MB growth in 1 hour
+        for: 0m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis memory growing rapidly"
+          description: "Redis memory increased by {{ $value }} bytes in the last hour"
+          
+  - name: monitoring.alerts
+    interval: 60s
+    rules:
+      # Prometheus Alert
+      - alert: PrometheusTargetsDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "Prometheus target is down"
+          description: "Target {{ $labels.job }}/{{ $labels.instance }} has been down for over 2 minutes"
+          
+      # Log Volume Alert
+      - alert: HighLogVolume
+        expr: rate(loki_ingester_chunks_created_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: info
+          service: monitoring
+        annotations:
+          summary: "High log ingestion rate"
+          description: "Loki is ingesting logs at {{ $value }} chunks/second"

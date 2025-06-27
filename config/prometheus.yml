@@ -16,6 +16,9 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+    basic_auth:
+      username: 'admin'
+      password: 'monitoring123'
 
   # Alloy monitoring
   - job_name: 'alloy'
@@ -23,12 +26,8 @@ scrape_configs:
       - targets: ['alloy:12345']
     scrape_interval: 30s
 
-  # MarketSage application metrics
-  - job_name: 'marketsage-app'
-    static_configs:
-      - targets: ['marketsage-web:3000']
-    metrics_path: '/metrics'
-    scrape_interval: 15s
+  # MarketSage application is monitored via container metrics (cadvisor)
+  # Health status can be checked via external monitoring if needed
 
   # PostgreSQL metrics
   - job_name: 'postgres'

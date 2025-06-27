@@ -13,25 +13,25 @@ groups:
           summary: "MarketSage application is down"
           description: "MarketSage application has been down for more than 1 minute"
           
-      - alert: HighResponseTime
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="marketsage-app"}[5m])) > 2
+      - alert: HighContainerCPU
+        expr: rate(container_cpu_usage_seconds_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[5m]) * 100 > 80
         for: 2m
         labels:
           severity: warning
           service: marketsage
         annotations:
-          summary: "High response time detected"
-          description: "95th percentile response time is {{ $value }}s"
+          summary: "MarketSage container high CPU usage"
+          description: "MarketSage web container CPU usage is {{ $value | humanizePercentage }}"
           
-      - alert: HighErrorRate
-        expr: rate(http_requests_total{job="marketsage-app",status=~"5.."}[5m]) / rate(http_requests_total{job="marketsage-app"}[5m]) > 0.05
+      - alert: HighContainerMemory
+        expr: container_memory_usage_bytes{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"} / container_spec_memory_limit_bytes{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"} > 0.9
         for: 2m
         labels:
           severity: critical
           service: marketsage
         annotations:
-          summary: "High error rate detected"
-          description: "Error rate is {{ $value | humanizePercentage }}"
+          summary: "MarketSage container high memory usage"
+          description: "MarketSage web container memory usage is {{ $value | humanizePercentage }}"
           
   - name: marketsage.ai
     interval: 30s
@@ -203,17 +203,17 @@ groups:
           summary: "High churn rate predicted"
           description: "Predicted churn rate is {{ $value | humanizePercentage }}"
           
-      - alert: UnusualTrafficPattern
+      - alert: UnusualNetworkTraffic
         expr: |
           abs(
-            (rate(http_requests_total{job="marketsage-app"}[1h]) - 
-             rate(http_requests_total{job="marketsage-app"}[1h] offset 24h)) /
-            rate(http_requests_total{job="marketsage-app"}[1h] offset 24h)
+            (rate(container_network_receive_bytes_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[1h]) - 
+             rate(container_network_receive_bytes_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[1h] offset 24h)) /
+            rate(container_network_receive_bytes_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[1h] offset 24h)
           ) > 0.5
         for: 10m
         labels:
           severity: info
           service: marketsage
         annotations:
-          summary: "Unusual traffic pattern detected"
-          description: "Traffic is {{ $value | humanizePercentage }} different from same time yesterday" 
+          summary: "Unusual network traffic pattern detected"
+          description: "Network traffic is {{ $value | humanizePercentage }} different from same time yesterday" 

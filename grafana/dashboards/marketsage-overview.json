@@ -6,28 +6,39 @@
   "panels": [
     {
       "id": 1,
-      "title": "CPU Usage",
-      "type": "stat",
+      "title": "System Load",
+      "type": "gauge",
       "targets": [
         {
-          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-          "legendFormat": "CPU Usage %",
+          "expr": "node_load1",
+          "legendFormat": "Load Average (1m)",
           "datasource": "Prometheus"
         }
       ],
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "short",
           "min": 0,
-          "max": 100
+          "max": 5,
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 2},
+              {"color": "red", "value": 4}
+            ]
+          }
         }
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
       }
     },
     {
       "id": 2,
       "title": "Memory Usage",
-      "type": "stat",
+      "type": "gauge",
       "targets": [
         {
           "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
@@ -40,21 +51,80 @@
         "defaults": {
           "unit": "percent",
           "min": 0,
-          "max": 100
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 85}
+            ]
+          }
         }
+      },
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
       }
     },
     {
       "id": 3,
-      "title": "Application Logs",
-      "type": "logs",
+      "title": "Service Health Status",
+      "type": "piechart",
       "targets": [
         {
-          "expr": "{job=\"docker\"}",
-          "datasource": "Loki"
+          "expr": "up",
+          "legendFormat": "{{job}}",
+          "datasource": "Prometheus"
         }
       ],
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "pieType": "pie",
+        "tooltip": {
+          "mode": "single"
+        },
+        "legend": {
+          "displayMode": "visible",
+          "placement": "right"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "Down", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "Up", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Container CPU Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/(2f06880c6c05|7330a230911b|f29b28128043).*\"}[5m]) * 100",
+          "legendFormat": "{{id}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "visible"}
+      }
     }
   ],
   "time": {"from": "now-1h", "to": "now"},

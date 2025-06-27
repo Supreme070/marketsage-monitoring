@@ -61,6 +61,18 @@ validate_configs() {
     echo "✅ All configurations are valid"
 }
 
+# Function to sync container IDs
+sync_container_ids() {
+    echo "🔄 Syncing with MarketSage container IDs..."
+    
+    if [ -f "./update-container-ids.sh" ]; then
+        chmod +x ./update-container-ids.sh
+        ./update-container-ids.sh
+    else
+        echo "⚠️  Container sync script not found - continuing without sync"
+    fi
+}
+
 # Function to start monitoring services
 start_monitoring() {
     echo "🎯 Starting monitoring services..."
@@ -73,6 +85,9 @@ start_monitoring() {
     wait_for_service "Loki" "http://localhost:3100/ready"
     wait_for_service "Grafana" "http://localhost:3000/api/health"
     wait_for_service "Alloy" "http://localhost:12345/-/healthy"
+    
+    # Sync with MarketSage containers after services are ready
+    sync_container_ids
     
     echo "🎉 All monitoring services are ready!"
 }
@@ -153,12 +168,15 @@ main() {
             start_monitoring
             show_urls
             ;;
+        sync)
+            sync_container_ids
+            ;;
         logs)
             echo "📋 Showing service logs..."
             docker-compose logs -f
             ;;
         *)
-            echo "Usage: $0 {start|stop|restart|health|logs}"
+            echo "Usage: $0 {start|stop|restart|health|logs|sync}"
             echo ""
             echo "Commands:"
             echo "  start   - Start the monitoring stack (default)"
@@ -166,6 +184,7 @@ main() {
             echo "  restart - Restart all monitoring services"
             echo "  health  - Check health of all services"
             echo "  logs    - Show logs from all services"
+            echo "  sync    - Sync with MarketSage container IDs"
             exit 1
             ;;
     esac

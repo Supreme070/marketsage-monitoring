@@ -38,6 +38,9 @@ limits_config:
   ingestion_burst_size_mb: 6
   max_cache_freshness_per_query: 10m
   split_queries_by_interval: 15m
+  reject_old_samples: false
+  reject_old_samples_max_age: 168h
+  creation_grace_period: 10m
 
 compactor:
   working_directory: /loki/compactor
@@ -54,4 +57,19 @@ ruler:
   ring:
     kvstore:
       store: inmemory
-  enable_api: true
+
+# Single-node mode configuration
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  chunk_idle_period: 5m
+  chunk_retain_period: 30s
+
+distributor:
+  ring:
+    kvstore:
+      store: inmemory

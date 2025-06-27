@@ -88,27 +88,38 @@ prometheus.remote_write "local_prometheus" {
 // 1. APPLICATION LOGS - Docker containers and application-specific logs
 loki.source.docker "docker_logs" {
 	host       = "unix:///var/run/docker.sock"
-	targets    = [{
-		__address__ = "localhost",
-		job         = "docker",
-	}]
+	targets    = discovery.docker.containers.targets
 	forward_to = [loki.process.application_logs.receiver]
+}
+
+// Docker container discovery
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
 }
 
 // Process and label application logs
 loki.process "application_logs" {
-	stage.json {
-		expressions = {
-			timestamp = "time",
-			level     = "level",
-			message   = "msg",
+	// Add container name as label
+	stage.labels {
+		values = {
+			container_name = "",
+			image_name = "",
 		}
 	}
 	
+	// Try to parse JSON logs if available
+	stage.json {
+		expressions = {
+			level     = "level",
+			message   = "msg",
+			timestamp = "time",
+		}
+	}
+	
+	// Add log level if found
 	stage.labels {
 		values = {
 			level = "",
-			container = "",
 		}
 	}
 	

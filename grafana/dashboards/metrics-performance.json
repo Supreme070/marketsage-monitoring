@@ -6,75 +6,178 @@
     "panels": [
       {
         "id": 1,
-        "title": "Application Response Time",
-        "type": "graph",
+        "title": "Database Query Performance",
+        "type": "timeseries",
         "targets": [
           {
-            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"marketsage-app\"}[5m]))",
-            "legendFormat": "95th Percentile"
+            "expr": "rate(pg_stat_database_tup_fetched{datname=\"marketsage\"}[5m])",
+            "legendFormat": "Rows Fetched/sec",
+            "datasource": "Prometheus"
           },
           {
-            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"marketsage-app\"}[5m]))",
-            "legendFormat": "50th Percentile"
+            "expr": "rate(pg_stat_database_tup_returned{datname=\"marketsage\"}[5m])",
+            "legendFormat": "Rows Returned/sec",
+            "datasource": "Prometheus"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rps",
+            "min": 0
+          }
+        },
+        "options": {
+          "tooltip": {"mode": "multi"},
+          "legend": {"displayMode": "visible"}
+        }
       },
       {
         "id": 2,
-        "title": "Request Rate",
-        "type": "graph",
+        "title": "Redis Operations Rate",
+        "type": "stat",
         "targets": [
           {
-            "expr": "rate(http_requests_total{job=\"marketsage-app\"}[5m])",
-            "legendFormat": "Requests/sec"
+            "expr": "rate(redis_commands_processed_total[5m])",
+            "legendFormat": "Commands/sec",
+            "datasource": "Prometheus"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+        "gridPos": {"h": 4, "w": 12, "x": 12, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rps",
+            "min": 0,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 100},
+                {"color": "red", "value": 1000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Redis Connected Clients",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "redis_connected_clients",
+            "legendFormat": "Connected Clients",
+            "datasource": "Prometheus"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 12, "x": 12, "y": 4},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "red", "value": 80}
+              ]
+            }
+          }
+        }
       },
       {
         "id": 3,
-        "title": "Database Performance",
-        "type": "graph",
+        "title": "Database Transaction Rate",
+        "type": "barchart",
         "targets": [
           {
-            "expr": "pg_stat_database_tup_fetched{datname=\"marketsage\"}",
-            "legendFormat": "Rows Fetched"
+            "expr": "rate(pg_stat_database_xact_commit[5m])",
+            "legendFormat": "Commits/sec",
+            "datasource": "Prometheus"
           },
           {
-            "expr": "pg_stat_database_tup_inserted{datname=\"marketsage\"}",
-            "legendFormat": "Rows Inserted"
+            "expr": "rate(pg_stat_database_xact_rollback[5m])",
+            "legendFormat": "Rollbacks/sec",
+            "datasource": "Prometheus"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "rps",
+            "min": 0
+          }
+        },
+        "options": {
+          "orientation": "horizontal",
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 100
+        }
       },
       {
         "id": 4,
-        "title": "Redis Performance",
-        "type": "graph",
+        "title": "Memory Usage Comparison",
+        "type": "piechart",
         "targets": [
           {
-            "expr": "redis_commands_processed_total",
-            "legendFormat": "Commands Processed"
+            "expr": "redis_memory_used_bytes",
+            "legendFormat": "Redis Memory",
+            "datasource": "Prometheus"
           },
           {
-            "expr": "redis_connected_clients",
-            "legendFormat": "Connected Clients"
+            "expr": "pg_database_size_bytes{datname=\"marketsage\"}",
+            "legendFormat": "PostgreSQL DB Size",
+            "datasource": "Prometheus"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bytes"
+          }
+        },
+        "options": {
+          "pieType": "pie",
+          "legend": {
+            "displayMode": "visible",
+            "placement": "right"
+          }
+        }
       },
       {
         "id": 5,
-        "title": "Container Resources",
-        "type": "graph",
+        "title": "Container CPU Usage Heatmap",
+        "type": "heatmap",
         "targets": [
           {
-            "expr": "rate(container_cpu_usage_seconds_total[5m])",
-            "legendFormat": "CPU Usage - {{name}}"
+            "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/(2f06880c6c05|7330a230911b|f29b28128043).*\"}[5m]) * 100",
+            "legendFormat": "{{id}}",
+            "datasource": "Prometheus"
           }
         ],
-        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        },
+        "options": {
+          "calculate": false,
+          "calculation": {},
+          "cellGap": 2,
+          "cellValues": {},
+          "color": {
+            "exponent": 0.5,
+            "fill": "dark-orange",
+            "mode": "spectrum",
+            "reverse": false,
+            "scale": "exponential",
+            "scheme": "Oranges",
+            "steps": 64
+          }
+        }
       }
     ],
     "time": {"from": "now-1h", "to": "now"},
