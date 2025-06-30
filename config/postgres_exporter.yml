@@ -1,0 +1,1 @@
+data_source_name: "postgresql://marketsage:${POSTGRES_PASSWORD:-password}@marketsage-db:5432/marketsage?sslmode=disable"

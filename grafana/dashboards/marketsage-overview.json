@@ -108,7 +108,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/edb73d189717(2f06880c6c05|7330a230911b|f29b28128043).*\"}[5m]) * 100",
+          "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/396cac3db06e(396cac3db06e|05207c37e69d|067ca88ea766).*\"}[5m]) * 100",
           "legendFormat": "{{id}}",
           "datasource": "Prometheus"
         }

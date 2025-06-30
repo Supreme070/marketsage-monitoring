@@ -16,3 +16,18 @@ datasources:
     access: proxy
     url: http://loki:3100
     isDefault: false
+
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    isDefault: false
+    traces:
+      # This is the name of the Prometheus datasource that contains the service graph metrics.
+      # If you have a different Prometheus datasource, change this to the correct name.
+      serviceMap:
+        datasourceUid: Prometheus
+      # This is the name of the Loki datasource that contains the logs.
+      # If you have a different Loki datasource, change this to the correct name.
+      logs:
+        datasourceUid: Loki

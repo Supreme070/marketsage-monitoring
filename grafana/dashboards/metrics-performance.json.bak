@@ -150,7 +150,7 @@
         "type": "heatmap",
         "targets": [
           {
-            "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/(2f06880c6c05|7330a230911b|f29b28128043).*\"}[5m]) * 100",
+            "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/edb73d189717(2f06880c6c05|7330a230911b|f29b28128043).*\"}[5m]) * 100",
             "legendFormat": "{{id}}",
             "datasource": "Prometheus"
           }

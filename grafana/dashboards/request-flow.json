@@ -1,0 +1,277 @@
+{
+  "id": null,
+  "title": "MarketSage - Request Flow Visualization",
+  "tags": ["marketsage", "request-flow", "visualization", "journey"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "🌊 Live Request Flow",
+      "type": "nodeGraph",
+      "targets": [
+        {
+          "expr": "traces_service_graph_request_total",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 16, "w": 24, "x": 0, "y": 0},
+      "options": {
+        "nodes": {
+          "mainStatUnit": "rps",
+          "secondaryStatUnit": "ms",
+          "arcs": [
+            {
+              "field": "Request rate",
+              "color": "green"
+            },
+            {
+              "field": "Error rate", 
+              "color": "red"
+            }
+          ]
+        },
+        "edges": {
+          "mainStatUnit": "rps",
+          "secondaryStatUnit": "ms",
+          "arcs": [
+            {
+              "field": "Request rate",
+              "color": "green"
+            },
+            {
+              "field": "Response time",
+              "color": "blue"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "📊 Request Volume by Endpoint",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "topk(10, sum by (span_name) (rate(traces_spanmetrics_calls_total[5m])))",
+          "legendFormat": "{{span_name}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "color": {"mode": "palette-classic"}
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 3,
+      "title": "⚡ Response Time Distribution",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (span_name, le) (rate(traces_spanmetrics_duration_bucket[5m])))",
+          "legendFormat": "{{span_name}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {"mode": "continuous-GrYlRd"},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 0.1},
+              {"color": "orange", "value": 0.5},
+              {"color": "red", "value": 1.0}
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 4,
+      "title": "🔄 Request Journey Timeline",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total[1m]))",
+          "legendFormat": "{{service_name}} requests/min",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "pointSize": 4
+          }
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "visible", "placement": "bottom"}
+      }
+    },
+    {
+      "id": 5,
+      "title": "🗄️ Database Interaction Flow",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_tup_fetched{datname=\"marketsage\"}[1m])",
+          "legendFormat": "DB Reads/min",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "rate(pg_stat_database_tup_inserted{datname=\"marketsage\"}[1m])",
+          "legendFormat": "DB Writes/min",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "rate(redis_commands_processed_total[1m])",
+          "legendFormat": "Cache Operations/min",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byRegexp", "options": "/DB.*/"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "/Cache.*/"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "purple"}}]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "title": "🚀 HTTP Request Pattern",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (method, status_code) (rate(http_requests_total[1m]))",
+          "legendFormat": "{{method}} {{status_code}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byRegexp", "options": "/.*2[0-9][0-9].*/"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "/.*4[0-9][0-9].*/"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "/.*5[0-9][0-9].*/"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          }
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "title": "🎯 User Journey Insights",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "topk(15, sum by (span_name) (rate(traces_spanmetrics_calls_total[5m])))",
+          "format": "table",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "custom": {
+            "displayMode": "color-background",
+            "align": "center"
+          }
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "span_name": "User Action/Endpoint",
+              "Value": "Requests/sec"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "🔍 Request Trace Details",
+      "type": "traces",
+      "targets": [
+        {
+          "query": "",
+          "datasource": "Tempo"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+      "options": {
+        "search": {
+          "hide": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "📋 Flow Analysis Guide",
+      "type": "text",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 48},
+      "options": {
+        "content": "## 🌊 Request Flow Analysis\n\n### 🎯 **How to Read This Dashboard:**\n- **Node Graph** shows real-time service dependencies and request flow\n- **Request Volume** identifies your busiest endpoints\n- **Response Times** highlights performance bottlenecks\n- **Journey Timeline** shows request patterns over time\n\n### 🔍 **Key Insights:**\n- **Thick arrows** = high request volume between services\n- **Red nodes** = services with errors\n- **Large nodes** = high request volume services\n- **Response time bars** help identify slow operations\n\n### 🛠️ **Optimization Tips:**\n- Focus on **high-volume + high-latency** combinations\n- **Database interactions** should be optimized if consistently high\n- **Cache operations** should outnumber database operations\n- **HTTP 4xx/5xx** patterns indicate client/server issues",
+        "mode": "markdown"
+      }
+    }
+  ],
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "version": 1,
+  "editable": true
+}

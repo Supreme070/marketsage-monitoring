@@ -10,12 +10,13 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION=false
+      - GF_SECURITY_ANONYMOUS_ENABLED=false
     command: ["grafana-server", "--config=/etc/grafana/grafana.ini", "--homepath=/usr/share/grafana"]
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - /etc/ssl/cert.pem:/etc/ssl/certs/ca-certificates.crt:ro
     secrets:
       - grafana_admin_password
       - grafana_cloud_api_key
@@ -25,6 +26,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
 
   # Grafana Alloy for metrics and log collection
   alloy:
@@ -32,7 +34,7 @@ services:
     container_name: alloy
     restart: unless-stopped
     ports:
-      - "12345:12345"
+      - "12345:12345"   # Alloy HTTP
     command:
       - run
       - /etc/alloy/config.alloy
@@ -62,6 +64,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
 
   # Local Prometheus for backup and local queries
   prometheus:
@@ -108,6 +111,29 @@ services:
     networks:
       - monitoring
 
+  # Tempo for distributed tracing
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    restart: unless-stopped
+    ports:
+      - "3200:3200"     # Tempo HTTP
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+      - "9411:9411"     # Zipkin
+      - "14268:14268"   # Jaeger HTTP
+    command:
+      - -config.file=/etc/tempo/tempo.yml
+    volumes:
+      - ./config/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    networks:
+      - monitoring
+      - marketsage_default
+    depends_on:
+      - prometheus
+
   # Alertmanager for alert routing
   alertmanager:
     image: prom/alertmanager:latest
@@ -127,7 +153,8 @@ services:
       - smtp_password
       - slack_webhook_url
     networks:
-      - monitoring
+      monitoring:
+        ipv4_address: 172.19.0.10
 
   # PostgreSQL Exporter for database metrics
   postgres-exporter:
@@ -136,6 +163,8 @@ services:
     restart: unless-stopped
     ports:
       - "9187:9187"
+    volumes:
+      - ./config/postgres_exporter.yml:/etc/postgres_exporter/postgres_exporter.yml:ro
     environment:
       - DATA_SOURCE_NAME=postgresql://marketsage:${POSTGRES_PASSWORD:-password}@marketsage-db:5432/marketsage?sslmode=disable
     networks:
@@ -202,6 +231,13 @@ services:
     depends_on:
       - prometheus
 
+  
+    
+
+  
+
+  
+
 # Docker secrets for sensitive data
 secrets:
   grafana_admin_password:
@@ -225,14 +261,19 @@ volumes:
     driver: local
   loki-data:
     driver: local
+  tempo-data:
+    driver: local
   alertmanager-data:
     driver: local
 
-# Networks
+# Networks:
 networks:
   monitoring:
     driver: bridge
     name: monitoring
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
   # External network for MarketSage connection
   marketsage_default:
     external: true

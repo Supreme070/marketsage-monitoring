@@ -1,0 +1,11 @@
+groups:
+  - name: sla-alerts
+    rules:
+      - alert: MarketSageWebAppDown
+        expr: up{job="marketsage-web"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: MarketSage web application is down
+          description: The MarketSage web application (job marketsage-web) has been down for more than 5 minutes.

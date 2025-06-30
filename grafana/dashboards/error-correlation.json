@@ -1,0 +1,234 @@
+{
+  "id": null,
+  "title": "MarketSage - Error Correlation & Analysis",
+  "tags": ["marketsage", "errors", "correlation", "debugging"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "🚨 Error Rate Overview",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[5m])) / sum(rate(traces_spanmetrics_calls_total[5m])) * 100",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 1},
+              {"color": "orange", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "📈 Error Trend",
+      "type": "sparkline",
+      "targets": [
+        {
+          "expr": "sum(rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[5m]))",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "color": {"mode": "single", "fixedColor": "red"}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "🔧 Active Error Types",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "count(count by (service_name, span_name) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[5m]) > 0))",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "single", "fixedColor": "orange"}
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "⏱️ Time to Recovery",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "time() - on() group_left() max by () (timestamp(changes(up{job=\"marketsage-web\"}[1h]) > 0))",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "color": {"mode": "single", "fixedColor": "blue"}
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "🔍 Error Correlation Matrix",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "sum by (service_name, span_name, status_code) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[5m]))",
+          "format": "table",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "custom": {
+            "displayMode": "color-background",
+            "align": "center"
+          },
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 0.01},
+              {"color": "orange", "value": 0.1},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "📊 Error Distribution by Service",
+      "type": "piechart",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[5m]))",
+          "legendFormat": "{{service_name}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "options": {
+        "pieType": "pie",
+        "legend": {"displayMode": "visible", "placement": "right"}
+      }
+    },
+    {
+      "id": 7,
+      "title": "🔗 Cross-Service Error Propagation",
+      "type": "nodeGraph",
+      "targets": [
+        {
+          "expr": "traces_service_graph_request_failed_total",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 12},
+      "options": {
+        "nodes": {
+          "mainStatUnit": "rps",
+          "secondaryStatUnit": "percent"
+        },
+        "edges": {
+          "mainStatUnit": "rps",
+          "secondaryStatUnit": "percent"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "📝 Recent Error Logs",
+      "type": "logs",
+      "targets": [
+        {
+          "expr": "{service_name=\"unknown_service\"} |~ \"(?i)error|exception|fail|500|400\" | json",
+          "datasource": "Loki"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22},
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "exact",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 9,
+      "title": "🎯 Error Timeline Correlation",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[1m]))",
+          "legendFormat": "{{service_name}} errors/sec",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{id=~\"/docker/.*\"}[1m]) * 100",
+          "legendFormat": "CPU: {{id}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+      "fieldConfig": {
+        "defaults": {
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byRegexp", "options": "/.*errors.*/"},
+            "properties": [
+              {"id": "unit", "value": "rps"},
+              {"id": "custom.axisPlacement", "value": "left"},
+              {"id": "color", "value": {"mode": "palette-classic"}}
+            ]
+          },
+          {
+            "matcher": {"id": "byRegexp", "options": "/CPU.*/"},
+            "properties": [
+              {"id": "unit", "value": "percent"},
+              {"id": "custom.axisPlacement", "value": "right"},
+              {"id": "color", "value": {"mode": "single", "fixedColor": "blue"}}
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "title": "🔬 Error Analysis & Actions",
+      "type": "text",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 30},
+      "options": {
+        "content": "## 🚨 Error Analysis Dashboard\n\n### 🎯 **Quick Actions:**\n- **Red zones** = immediate investigation needed\n- **Error spikes** correlating with **CPU/Memory** spikes = resource issues\n- **Cross-service errors** = check dependencies\n- **Database errors** = check queries and connections\n\n### 🔍 **Investigation Workflow:**\n1. **Check Error Rate** - > 5% needs immediate attention\n2. **Identify Service** - Which service has highest error rate?\n3. **Check Correlation** - Are errors related to resource usage?\n4. **Review Logs** - Click on error logs for detailed context\n5. **Trace Analysis** - Use Tempo to see full request flow\n\n### 🛠️ **Common Root Causes:**\n- **Database**: Connection timeouts, slow queries\n- **Memory**: Memory leaks, GC pressure\n- **Network**: Service unavailability, timeouts\n- **Business Logic**: Validation errors, data issues",
+        "mode": "markdown"
+      }
+    }
+  ],
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "version": 1,
+  "editable": true
+}

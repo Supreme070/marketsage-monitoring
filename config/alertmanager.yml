@@ -1,9 +1,11 @@
 global:
-  smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'marketsage-alerts@yourdomain.com'
-  smtp_auth_username: 'marketsage-alerts@yourdomain.com'
+  smtp_smarthost: 'smtp.zoho.com:587'
+  smtp_from: 'supreme@marketsage.africa'
+  smtp_auth_username: 'supreme@marketsage.africa'
   smtp_auth_password_file: '/run/secrets/smtp_password'
   smtp_require_tls: true
+  smtp_tls_config:
+    insecure_skip_verify: true
 
 route:
   group_by: ['alertname']
@@ -29,7 +31,7 @@ receivers:
 
   - name: 'critical-alerts'
     email_configs:
-      - to: 'admin@yourdomain.com'
+      - to: 'supreme@marketsage.africa'
         html: |
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
@@ -40,6 +42,9 @@ receivers:
     slack_configs:
       - api_url_file: '/run/secrets/slack_webhook_url'
         channel: '#alerts-critical'
+        http_config:
+          tls_config:
+            insecure_skip_verify: true
         title: 'Critical Alert: {{ .GroupLabels.alertname }}'
         text: |
           {{ range .Alerts }}
@@ -52,7 +57,7 @@ receivers:
 
   - name: 'warning-alerts'
     email_configs:
-      - to: 'team@yourdomain.com'
+      - to: 'supreme@marketsage.africa'
         html: |
           {{ range .Alerts }}
           Alert: {{ .Annotations.summary }}
@@ -63,6 +68,9 @@ receivers:
     slack_configs:
       - api_url_file: '/run/secrets/slack_webhook_url'
         channel: '#alerts-warning'
+        http_config:
+          tls_config:
+            insecure_skip_verify: true
         title: 'Warning Alert: {{ .GroupLabels.alertname }}'
         text: |
           {{ range .Alerts }}
@@ -75,7 +83,7 @@ receivers:
 
   - name: 'marketsage-alerts'
     email_configs:
-      - to: 'marketsage-team@yourdomain.com'
+      - to: 'supreme@marketsage.africa'
         html: |
           MarketSage Application Alert
           
@@ -90,11 +98,14 @@ receivers:
     slack_configs:
       - api_url_file: '/run/secrets/slack_webhook_url'
         channel: '#marketsage-alerts'
+        http_config:
+          tls_config:
+            insecure_skip_verify: true
         title: 'MarketSage Alert: {{ .GroupLabels.alertname }}'
         text: |
           {{ range .Alerts }}
           *Service:* {{ .Labels.service }}
-          *Alert:* {{ .Annotations.summary }}
+          *Alert:* {{ .Annotations.annotations.summary }}
           *Description:* {{ .Annotations.description }}
           *Severity:* {{ .Labels.severity }}
           *Time:* {{ .StartsAt }}

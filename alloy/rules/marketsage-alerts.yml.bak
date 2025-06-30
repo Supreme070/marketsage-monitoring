@@ -14,7 +14,7 @@ groups:
           description: "MarketSage application has been down for more than 1 minute"
           
       - alert: HighContainerCPU
-        expr: rate(container_cpu_usage_seconds_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[5m]) * 100 > 80
+        expr: rate(container_cpu_usage_seconds_total{id="/docker/edb73d189717"}[5m]) * 100 > 80
         for: 2m
         labels:
           severity: warning
@@ -24,7 +24,7 @@ groups:
           description: "MarketSage web container CPU usage is {{ $value | humanizePercentage }}"
           
       - alert: HighContainerMemory
-        expr: container_memory_usage_bytes{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"} / container_spec_memory_limit_bytes{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"} > 0.9
+        expr: container_memory_usage_bytes{id="/docker/edb73d189717"} / container_spec_memory_limit_bytes{id="/docker/edb73d189717"} > 0.9
         for: 2m
         labels:
           severity: critical
@@ -206,9 +206,9 @@ groups:
       - alert: UnusualNetworkTraffic
         expr: |
           abs(
-            (rate(container_network_receive_bytes_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[1h]) - 
-             rate(container_network_receive_bytes_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[1h] offset 24h)) /
-            rate(container_network_receive_bytes_total{id="/docker/2f06880c6c05f4e7ac121451a5105a60688b45e84fe381d14e1142300bbe32b0"}[1h] offset 24h)
+            (rate(container_network_receive_bytes_total{id="/docker/edb73d189717"}[1h]) - 
+             rate(container_network_receive_bytes_total{id="/docker/edb73d189717"}[1h] offset 24h)) /
+            rate(container_network_receive_bytes_total{id="/docker/edb73d189717"}[1h] offset 24h)
           ) > 0.5
         for: 10m
         labels:

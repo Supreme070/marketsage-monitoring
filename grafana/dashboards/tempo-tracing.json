@@ -1,0 +1,250 @@
+{
+  "id": null,
+  "title": "MarketSage - Distributed Tracing",
+  "tags": ["marketsage", "tracing", "tempo"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tempo Status",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "up{job=\"tempo\"}",
+          "legendFormat": "Tempo Up",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": 0},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "mappings": [
+            {"options": {"0": {"text": "Down", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "Up", "color": "green"}}, "type": "value"}
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Traces Ingested/sec",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "rate(tempo_distributor_spans_received_total[5m]) or vector(0)",
+          "legendFormat": "Spans/sec",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0,
+          "color": {"mode": "single", "fixedColor": "blue"}
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Active Traces",
+      "type": "stat", 
+      "targets": [
+        {
+          "expr": "tempo_ingester_live_traces or vector(0)",
+          "legendFormat": "Live Traces", 
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {"mode": "single", "fixedColor": "green"}
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Trace Search",
+      "type": "tempo-search",
+      "targets": [
+        {
+          "query": "",
+          "datasource": "Tempo"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "options": {
+        "query": "",
+        "search": {
+          "hide": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Spans by Service",
+      "type": "piechart",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(tempo_distributor_spans_received_total[5m]))",
+          "legendFormat": "{{service_name}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "options": {
+        "pieType": "pie",
+        "legend": {"displayMode": "visible", "placement": "right"}
+      }
+    },
+    {
+      "id": 6,
+      "title": "Request Rate by Service",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total[5m]))",
+          "legendFormat": "{{service_name}}",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "visible"}
+      }
+    },
+    {
+      "id": 7,
+      "title": "Service Map",
+      "type": "nodeGraph",
+      "targets": [
+        {
+          "expr": "traces_service_graph_request_total",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 14},
+      "options": {
+        "nodes": {
+          "mainStatUnit": "rps"
+        },
+        "edges": {
+          "mainStatUnit": "rps"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "P95 Latency by Service",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traces_spanmetrics_duration_bucket[5m])) by (le, service_name))",
+          "legendFormat": "{{service_name}} p95",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "visible"}
+      }
+    },
+    {
+      "id": 9,
+      "title": "Error Rate by Service",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(traces_spanmetrics_calls_total{status_code=\"STATUS_CODE_ERROR\"}[5m])) / sum by (service_name) (rate(traces_spanmetrics_calls_total[5m]))",
+          "legendFormat": "{{service_name}} errors",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "options": {
+        "tooltip": {"mode": "multi"},
+        "legend": {"displayMode": "visible"}
+      }
+    },
+    {
+      "id": 10,
+      "title": "Tempo Ingester Memory",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "tempo_ingester_bytes_received_total",
+          "legendFormat": "Bytes Received",
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 32},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Tempo Block Operations",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(tempo_ingester_blocks_flushed_total[5m])",
+          "legendFormat": "Blocks Flushed/sec",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "rate(tempo_compactor_blocks_marked_for_deletion_total[5m])",
+          "legendFormat": "Blocks Deleted/sec", 
+          "datasource": "Prometheus"
+        }
+      ],
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 32},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rps",
+          "min": 0
+        }
+      }
+    }
+  ],
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "version": 1,
+  "editable": true
+}
