@@ -1,0 +1,381 @@
+groups:
+  - name: anomaly_detection
+    interval: 30s
+    rules:
+      # Statistical Anomaly Detection using z-scores and percentiles
+      
+      # Response Time Anomaly Detection
+      - record: marketsage:response_time_baseline_1h
+        expr: |
+          avg_over_time(marketsage_response_time_seconds[1h])
+
+      - record: marketsage:response_time_stddev_1h
+        expr: |
+          stddev_over_time(marketsage_response_time_seconds[1h])
+
+      - record: marketsage:response_time_z_score
+        expr: |
+          (marketsage_response_time_seconds - marketsage:response_time_baseline_1h) / 
+          marketsage:response_time_stddev_1h
+
+      - record: marketsage:response_time_p95_baseline_24h
+        expr: |
+          quantile_over_time(0.95, marketsage_response_time_seconds[24h])
+
+      # Error Rate Anomaly Detection
+      - record: marketsage:error_rate_baseline_6h
+        expr: |
+          avg_over_time(rate(prometheus_http_requests_total{code=~"5.."}[5m])[6h:])
+
+      - record: marketsage:error_rate_current
+        expr: |
+          rate(prometheus_http_requests_total{code=~"5.."}[5m])
+
+      - record: marketsage:error_rate_anomaly_score
+        expr: |
+          (marketsage:error_rate_current - marketsage:error_rate_baseline_6h) / 
+          marketsage:error_rate_baseline_6h
+
+      # Traffic Volume Anomaly Detection
+      - record: marketsage:traffic_volume_baseline_24h
+        expr: |
+          avg_over_time(rate(prometheus_http_requests_total[5m])[24h:])
+
+      - record: marketsage:traffic_volume_current
+        expr: |
+          rate(prometheus_http_requests_total[5m])
+
+      - record: marketsage:traffic_volume_anomaly_ratio
+        expr: |
+          marketsage:traffic_volume_current / marketsage:traffic_volume_baseline_24h
+
+      # Business Metrics Anomaly Detection
+      - record: marketsage:user_signup_rate_baseline_7d
+        expr: |
+          avg_over_time(rate(marketsage_new_users_today[24h])[7d:])
+
+      - record: marketsage:user_signup_rate_current
+        expr: |
+          rate(marketsage_new_users_today[24h])
+
+      - record: marketsage:user_signup_anomaly_score
+        expr: |
+          (marketsage:user_signup_rate_current - marketsage:user_signup_rate_baseline_7d) / 
+          marketsage:user_signup_rate_baseline_7d
+
+      # Campaign Performance Anomaly Detection
+      - record: marketsage:campaign_open_rate_baseline_14d
+        expr: |
+          avg_over_time(marketsage_campaign_open_rate[14d])
+
+      - record: marketsage:campaign_open_rate_anomaly_score
+        expr: |
+          (marketsage_campaign_open_rate - marketsage:campaign_open_rate_baseline_14d) / 
+          marketsage:campaign_open_rate_baseline_14d
+
+      # System Resource Anomaly Detection
+      - record: marketsage:cpu_usage_baseline_24h
+        expr: |
+          avg_over_time((100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))[24h:])
+
+      - record: marketsage:cpu_usage_current
+        expr: |
+          100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+      - record: marketsage:cpu_usage_anomaly_score
+        expr: |
+          (marketsage:cpu_usage_current - marketsage:cpu_usage_baseline_24h) / 
+          marketsage:cpu_usage_baseline_24h
+
+      # Database Performance Anomaly Detection
+      - record: marketsage:db_query_time_baseline_6h
+        expr: |
+          avg_over_time(pg_stat_database_blk_read_time[6h])
+
+      - record: marketsage:db_query_time_anomaly_score
+        expr: |
+          (pg_stat_database_blk_read_time - marketsage:db_query_time_baseline_6h) / 
+          marketsage:db_query_time_baseline_6h
+
+      # Seasonal Pattern Detection (Day of Week)
+      - record: marketsage:traffic_dow_pattern
+        expr: |
+          avg_over_time(rate(prometheus_http_requests_total[1h])[7d:1h]) by (job)
+
+      - record: marketsage:traffic_seasonal_deviation
+        expr: |
+          abs(
+            rate(prometheus_http_requests_total[1h]) - 
+            marketsage:traffic_dow_pattern
+          ) / marketsage:traffic_dow_pattern
+
+  - name: anomaly_alerts
+    rules:
+      # Statistical Anomaly Alerts
+      - alert: ResponseTimeAnomalyDetected
+        expr: abs(marketsage:response_time_z_score) > 3
+        for: 5m
+        labels:
+          severity: warning
+          category: anomaly
+          type: performance
+          runbook_url: "https://runbooks.marketsage.com/anomalies/response-time"
+        annotations:
+          summary: "Unusual response time pattern detected"
+          description: |
+            Response time showing statistical anomaly (z-score: {{ $value | printf "%.2f" }}).
+            Current response time: {{ with query "marketsage_response_time_seconds" }}{{ . | first | value | printf "%.3f" }}{{ end }}s
+            Baseline (1h avg): {{ with query "marketsage:response_time_baseline_1h" }}{{ . | first | value | printf "%.3f" }}{{ end }}s
+            
+            A z-score > 3 indicates the current value is more than 3 standard deviations from the mean.
+            
+            **Investigation Steps:**
+            - Check for recent deployments or configuration changes
+            - Review system resource utilization
+            - Analyze error logs for correlating issues
+            - Check database performance metrics
+            
+            Runbook: {{ $labels.runbook_url }}
+
+      - alert: ResponseTimeExtremeAnomaly
+        expr: marketsage_response_time_seconds > marketsage:response_time_p95_baseline_24h * 2
+        for: 2m
+        labels:
+          severity: critical
+          category: anomaly
+          type: performance
+          runbook_url: "https://runbooks.marketsage.com/anomalies/response-time"
+        annotations:
+          summary: "Extreme response time anomaly detected"
+          description: |
+            Response time is {{ $value | printf "%.3f" }}s, which is more than 2x the 95th percentile baseline.
+            95th percentile baseline (24h): {{ with query "marketsage:response_time_p95_baseline_24h" }}{{ . | first | value | printf "%.3f" }}{{ end }}s
+            
+            This indicates a severe performance degradation.
+            
+            **Immediate Actions:**
+            - Check system health immediately
+            - Review recent changes
+            - Consider rolling back recent deployments
+            - Escalate to on-call engineer
+
+      - alert: ErrorRateAnomalyDetected
+        expr: marketsage:error_rate_anomaly_score > 2.0
+        for: 3m
+        labels:
+          severity: warning
+          category: anomaly
+          type: error_rate
+          runbook_url: "https://runbooks.marketsage.com/anomalies/error-rate"
+        annotations:
+          summary: "Unusual error rate pattern detected"
+          description: |
+            Error rate anomaly detected. Current rate is {{ $value | printf "%.1f" }}x higher than baseline.
+            Current error rate: {{ with query "marketsage:error_rate_current" }}{{ . | first | value | printf "%.4f" }}{{ end }} errors/sec
+            Baseline (6h avg): {{ with query "marketsage:error_rate_baseline_6h" }}{{ . | first | value | printf "%.4f" }}{{ end }} errors/sec
+            
+            **Investigation Steps:**
+            - Review error logs for new error patterns
+            - Check for recent deployments
+            - Analyze user traffic patterns
+            - Review third-party service status
+
+      - alert: TrafficVolumeAnomalyDetected
+        expr: |
+          marketsage:traffic_volume_anomaly_ratio > 3.0 or 
+          marketsage:traffic_volume_anomaly_ratio < 0.3
+        for: 10m
+        labels:
+          severity: warning
+          category: anomaly
+          type: traffic
+          runbook_url: "https://runbooks.marketsage.com/anomalies/traffic"
+        annotations:
+          summary: "Unusual traffic volume pattern detected"
+          description: |
+            Traffic volume anomaly detected. Current volume is {{ $value | printf "%.1f" }}x the baseline.
+            Current traffic: {{ with query "marketsage:traffic_volume_current" }}{{ . | first | value | printf "%.2f" }}{{ end }} req/sec
+            Baseline (24h avg): {{ with query "marketsage:traffic_volume_baseline_24h" }}{{ . | first | value | printf "%.2f" }}{{ end }} req/sec
+            
+            **Possible Causes:**
+            - Marketing campaign or viral content (if high)
+            - Service outage or client issues (if low)
+            - DDoS attack or bot traffic (if extremely high)
+            - Seasonal patterns or holidays
+            
+            **Actions:**
+            - Verify traffic source and legitimacy
+            - Check system capacity and auto-scaling
+            - Monitor for performance degradation
+
+      # Business Anomaly Alerts
+      - alert: UserSignupAnomalyDetected
+        expr: abs(marketsage:user_signup_anomaly_score) > 1.5
+        for: 30m
+        labels:
+          severity: info
+          category: anomaly
+          type: business
+          runbook_url: "https://runbooks.marketsage.com/anomalies/user-signups"
+        annotations:
+          summary: "Unusual user signup pattern detected"
+          description: |
+            User signup rate anomaly detected ({{ $value | printf "%.1f" }}x baseline).
+            Current signup rate: {{ with query "marketsage:user_signup_rate_current" }}{{ . | first | value | printf "%.2f" }}{{ end }} signups/day
+            Baseline (7d avg): {{ with query "marketsage:user_signup_rate_baseline_7d" }}{{ . | first | value | printf "%.2f" }}{{ end }} signups/day
+            
+            **Business Investigation:**
+            - Check marketing campaigns and channels
+            - Review user acquisition costs
+            - Analyze signup sources and quality
+            - Monitor conversion funnel performance
+
+      - alert: CampaignPerformanceAnomalyDetected
+        expr: abs(marketsage:campaign_open_rate_anomaly_score) > 0.5
+        for: 1h
+        labels:
+          severity: info
+          category: anomaly
+          type: campaign
+          runbook_url: "https://runbooks.marketsage.com/anomalies/campaigns"
+        annotations:
+          summary: "Campaign open rate anomaly detected"
+          description: |
+            Campaign open rate showing unusual pattern ({{ $value | printf "%.1f" }}x baseline).
+            Current open rate: {{ with query "marketsage_campaign_open_rate" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            Baseline (14d avg): {{ with query "marketsage:campaign_open_rate_baseline_14d" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            
+            **Campaign Investigation:**
+            - Review recent campaign content and timing
+            - Check email deliverability status
+            - Analyze audience engagement patterns
+            - Monitor competitor activities
+
+      # System Resource Anomaly Alerts
+      - alert: CPUUsageAnomalyDetected
+        expr: abs(marketsage:cpu_usage_anomaly_score) > 1.0
+        for: 15m
+        labels:
+          severity: warning
+          category: anomaly
+          type: system
+          runbook_url: "https://runbooks.marketsage.com/anomalies/cpu"
+        annotations:
+          summary: "Unusual CPU usage pattern detected"
+          description: |
+            CPU usage anomaly detected ({{ $value | printf "%.1f" }}x baseline).
+            Current CPU usage: {{ with query "marketsage:cpu_usage_current" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            Baseline (24h avg): {{ with query "marketsage:cpu_usage_baseline_24h" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            
+            **System Investigation:**
+            - Identify processes consuming unusual CPU
+            - Check for background tasks or batch jobs
+            - Review system logs for errors
+            - Monitor memory and I/O patterns
+
+      - alert: DatabasePerformanceAnomalyDetected
+        expr: marketsage:db_query_time_anomaly_score > 2.0
+        for: 10m
+        labels:
+          severity: warning
+          category: anomaly
+          type: database
+          runbook_url: "https://runbooks.marketsage.com/anomalies/database"
+        annotations:
+          summary: "Database performance anomaly detected"
+          description: |
+            Database query time anomaly detected ({{ $value | printf "%.1f" }}x baseline).
+            Current query time: {{ with query "pg_stat_database_blk_read_time" }}{{ . | first | value | printf "%.2f" }}{{ end }}ms
+            Baseline (6h avg): {{ with query "marketsage:db_query_time_baseline_6h" }}{{ . | first | value | printf "%.2f" }}{{ end }}ms
+            
+            **Database Investigation:**
+            - Review slow query logs
+            - Check for long-running transactions
+            - Analyze table lock contention
+            - Monitor connection pool status
+            - Review recent schema changes
+
+      # Seasonal Pattern Alerts
+      - alert: SeasonalTrafficDeviationDetected
+        expr: marketsage:traffic_seasonal_deviation > 2.0
+        for: 1h
+        labels:
+          severity: info
+          category: anomaly
+          type: seasonal
+          runbook_url: "https://runbooks.marketsage.com/anomalies/seasonal"
+        annotations:
+          summary: "Traffic deviating from seasonal patterns"
+          description: |
+            Current traffic is {{ $value | printf "%.1f" }}x different from typical day-of-week pattern.
+            Current traffic: {{ with query "rate(prometheus_http_requests_total[1h])" }}{{ . | first | value | printf "%.2f" }}{{ end }} req/sec
+            Expected pattern: {{ with query "marketsage:traffic_dow_pattern" }}{{ . | first | value | printf "%.2f" }}{{ end }} req/sec
+            
+            **Pattern Analysis:**
+            - Consider external factors (holidays, events)
+            - Check marketing campaign schedules
+            - Review user behavior changes
+            - Monitor for systematic shifts in usage patterns
+
+  - name: anomaly_ml_features
+    rules:
+      # Feature engineering for ML-based anomaly detection
+      
+      # Rolling window features
+      - record: marketsage:response_time_rolling_mean_5m
+        expr: avg_over_time(marketsage_response_time_seconds[5m])
+
+      - record: marketsage:response_time_rolling_mean_1h
+        expr: avg_over_time(marketsage_response_time_seconds[1h])
+
+      - record: marketsage:response_time_rolling_std_1h
+        expr: stddev_over_time(marketsage_response_time_seconds[1h])
+
+      # Trend features
+      - record: marketsage:response_time_trend_5m
+        expr: |
+          (marketsage:response_time_rolling_mean_5m - 
+           (marketsage:response_time_rolling_mean_5m offset 5m)) / 
+          (marketsage:response_time_rolling_mean_5m offset 5m)
+
+      # Cross-metric correlation features
+      - record: marketsage:response_time_vs_cpu_correlation
+        expr: |
+          (marketsage_response_time_seconds - avg_over_time(marketsage_response_time_seconds[1h])) *
+          (marketsage:cpu_usage_current - avg_over_time(marketsage:cpu_usage_current[1h]))
+
+      # Composite anomaly score
+      - record: marketsage:composite_anomaly_score
+        expr: |
+          (
+            abs(marketsage:response_time_z_score) * 0.3 +
+            abs(marketsage:error_rate_anomaly_score) * 0.3 +
+            abs(marketsage:cpu_usage_anomaly_score) * 0.2 +
+            abs(marketsage:traffic_volume_anomaly_ratio - 1) * 0.2
+          )
+
+      # Composite anomaly alert
+      - alert: CompositeAnomalyDetected
+        expr: marketsage:composite_anomaly_score > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          category: anomaly
+          type: composite
+          runbook_url: "https://runbooks.marketsage.com/anomalies/composite"
+        annotations:
+          summary: "Multiple system anomalies detected"
+          description: |
+            Composite anomaly score is {{ $value | printf "%.2f" }}, indicating multiple system metrics are behaving abnormally.
+            
+            **Component Scores:**
+            - Response time z-score: {{ with query "marketsage:response_time_z_score" }}{{ . | first | value | printf "%.2f" }}{{ end }}
+            - Error rate anomaly: {{ with query "marketsage:error_rate_anomaly_score" }}{{ . | first | value | printf "%.2f" }}{{ end }}
+            - CPU usage anomaly: {{ with query "marketsage:cpu_usage_anomaly_score" }}{{ . | first | value | printf "%.2f" }}{{ end }}
+            - Traffic volume ratio: {{ with query "marketsage:traffic_volume_anomaly_ratio" }}{{ . | first | value | printf "%.2f" }}{{ end }}
+            
+            **Comprehensive Investigation Required:**
+            - Review system-wide health
+            - Check for cascading failures
+            - Analyze recent changes across all components
+            - Consider emergency response procedures

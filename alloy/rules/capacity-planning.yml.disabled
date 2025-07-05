@@ -1,0 +1,341 @@
+groups:
+  - name: capacity_planning
+    interval: 30s
+    rules:
+      # CPU Capacity Planning
+      - record: marketsage:cpu_usage_trend_1h
+        expr: |
+          avg_over_time(
+            (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100))[1h:]
+          )
+
+      - record: marketsage:cpu_usage_trend_24h
+        expr: |
+          avg_over_time(marketsage:cpu_usage_trend_1h[24h])
+
+      - record: marketsage:cpu_capacity_prediction_7d
+        expr: |
+          predict_linear(marketsage:cpu_usage_trend_24h[7d], 7*24*3600)
+
+      # Memory Capacity Planning
+      - record: marketsage:memory_usage_trend_1h
+        expr: |
+          avg_over_time(
+            ((node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100)[1h:]
+          )
+
+      - record: marketsage:memory_usage_trend_24h
+        expr: |
+          avg_over_time(marketsage:memory_usage_trend_1h[24h])
+
+      - record: marketsage:memory_capacity_prediction_7d
+        expr: |
+          predict_linear(marketsage:memory_usage_trend_24h[7d], 7*24*3600)
+
+      # Disk Capacity Planning
+      - record: marketsage:disk_usage_trend_1h
+        expr: |
+          avg_over_time(
+            ((node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_avail_bytes{mountpoint="/"}) / node_filesystem_size_bytes{mountpoint="/"} * 100)[1h:]
+          )
+
+      - record: marketsage:disk_usage_trend_24h
+        expr: |
+          avg_over_time(marketsage:disk_usage_trend_1h[24h])
+
+      - record: marketsage:disk_capacity_prediction_7d
+        expr: |
+          predict_linear(marketsage:disk_usage_trend_24h[7d], 7*24*3600)
+
+      # Database Growth Planning
+      - record: marketsage:db_size_growth_rate_daily
+        expr: |
+          rate(pg_database_size_bytes[24h])
+
+      - record: marketsage:db_size_prediction_30d
+        expr: |
+          pg_database_size_bytes + (marketsage:db_size_growth_rate_daily * 30 * 24 * 3600)
+
+      # Log Storage Growth Planning
+      - record: marketsage:log_ingestion_rate_1h
+        expr: |
+          rate(loki_ingester_chunks_created_total[1h])
+
+      - record: marketsage:log_storage_prediction_30d
+        expr: |
+          predict_linear(loki_ingester_chunks_created_total[7d], 30*24*3600)
+
+      # Container Resource Usage Trends
+      - record: marketsage:container_cpu_trend_24h
+        expr: |
+          avg_over_time(
+            rate(container_cpu_usage_seconds_total{name!=""}[5m])[24h:]
+          ) by (name)
+
+      - record: marketsage:container_memory_trend_24h
+        expr: |
+          avg_over_time(
+            container_memory_usage_bytes{name!=""}[24h:]
+          ) by (name)
+
+      # Business Metrics Growth Trends
+      - record: marketsage:user_growth_rate_daily
+        expr: |
+          rate(marketsage_total_users[24h])
+
+      - record: marketsage:user_count_prediction_90d
+        expr: |
+          marketsage_total_users + (marketsage:user_growth_rate_daily * 90 * 24 * 3600)
+
+      - record: marketsage:campaign_volume_trend_daily
+        expr: |
+          rate(marketsage_campaigns_sent_today[24h])
+
+      - record: marketsage:campaign_volume_prediction_30d
+        expr: |
+          predict_linear(marketsage_campaigns_sent_today[7d], 30*24*3600)
+
+  - name: capacity_alerts
+    rules:
+      # CPU Capacity Alerts
+      - alert: CPUCapacityWarning
+        expr: marketsage:cpu_capacity_prediction_7d > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: capacity_planning
+          resource: cpu
+          runbook_url: "https://runbooks.marketsage.com/capacity/cpu"
+        annotations:
+          summary: "CPU capacity trending towards exhaustion"
+          description: |
+            Based on current trends, CPU usage is predicted to reach {{ $value | printf "%.1f" }}% within 7 days.
+            Current usage: {{ with query "marketsage:cpu_usage_trend_24h" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            
+            **Recommended Actions:**
+            - Review resource-intensive processes
+            - Consider scaling up CPU resources
+            - Implement CPU optimization strategies
+            
+            **Timeline:** Action needed within 5 days
+            Runbook: {{ $labels.runbook_url }}
+
+      - alert: CPUCapacityCritical
+        expr: marketsage:cpu_capacity_prediction_7d > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: capacity_planning
+          resource: cpu
+          runbook_url: "https://runbooks.marketsage.com/capacity/cpu"
+        annotations:
+          summary: "Critical CPU capacity exhaustion predicted"
+          description: |
+            URGENT: CPU usage predicted to reach {{ $value | printf "%.1f" }}% within 7 days.
+            This indicates imminent resource exhaustion.
+            
+            **Immediate Actions Required:**
+            - Scale up CPU resources immediately
+            - Identify and terminate non-essential processes
+            - Implement emergency load shedding if available
+            
+            **Timeline:** Action needed within 2 days
+            Runbook: {{ $labels.runbook_url }}
+
+      # Memory Capacity Alerts
+      - alert: MemoryCapacityWarning
+        expr: marketsage:memory_capacity_prediction_7d > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: capacity_planning
+          resource: memory
+          runbook_url: "https://runbooks.marketsage.com/capacity/memory"
+        annotations:
+          summary: "Memory capacity trending towards exhaustion"
+          description: |
+            Memory usage predicted to reach {{ $value | printf "%.1f" }}% within 7 days.
+            Current usage: {{ with query "marketsage:memory_usage_trend_24h" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            
+            **Recommended Actions:**
+            - Review memory-intensive applications
+            - Consider scaling up memory resources
+            - Implement memory optimization strategies
+            - Review cache sizes and retention policies
+
+      # Disk Capacity Alerts
+      - alert: DiskCapacityWarning
+        expr: marketsage:disk_capacity_prediction_7d > 90
+        for: 5m
+        labels:
+          severity: warning
+          category: capacity_planning
+          resource: disk
+          runbook_url: "https://runbooks.marketsage.com/capacity/disk"
+        annotations:
+          summary: "Disk capacity trending towards exhaustion"
+          description: |
+            Disk usage predicted to reach {{ $value | printf "%.1f" }}% within 7 days.
+            Current usage: {{ with query "marketsage:disk_usage_trend_24h" }}{{ . | first | value | printf "%.1f" }}{{ end }}%
+            
+            **Recommended Actions:**
+            - Clean up old logs and temporary files
+            - Review data retention policies
+            - Consider adding storage capacity
+            - Implement log rotation if not already active
+
+      - alert: DiskCapacityCritical
+        expr: marketsage:disk_capacity_prediction_7d > 98
+        for: 1m
+        labels:
+          severity: critical
+          category: capacity_planning
+          resource: disk
+          runbook_url: "https://runbooks.marketsage.com/capacity/disk"
+        annotations:
+          summary: "Critical disk capacity exhaustion predicted"
+          description: |
+            URGENT: Disk usage predicted to reach {{ $value | printf "%.1f" }}% within 7 days.
+            System stability at risk.
+            
+            **Immediate Actions Required:**
+            - Free up disk space immediately
+            - Implement emergency log cleanup
+            - Add storage capacity within 48 hours
+            - Consider temporary data archival
+
+      # Database Growth Alerts
+      - alert: DatabaseGrowthAcceleration
+        expr: marketsage:db_size_prediction_30d > 50 * 1024^3  # 50GB
+        for: 10m
+        labels:
+          severity: warning
+          category: capacity_planning
+          resource: database
+          runbook_url: "https://runbooks.marketsage.com/capacity/database"
+        annotations:
+          summary: "Database size growing rapidly"
+          description: |
+            Database predicted to reach {{ $value | humanize1024 }}B within 30 days.
+            Current size: {{ with query "pg_database_size_bytes" }}{{ . | first | value | humanize1024 }}{{ end }}B
+            
+            **Recommended Actions:**
+            - Review data retention policies
+            - Implement data archival strategies
+            - Optimize database queries and indexes
+            - Consider database partitioning
+
+      # User Growth Planning
+      - alert: UserGrowthCapacityPlanning
+        expr: marketsage:user_count_prediction_90d > 10000
+        for: 30m
+        labels:
+          severity: info
+          category: capacity_planning
+          resource: users
+          runbook_url: "https://runbooks.marketsage.com/capacity/user-scaling"
+        annotations:
+          summary: "User base growth requiring infrastructure scaling"
+          description: |
+            User count predicted to reach {{ $value | printf "%.0f" }} within 90 days.
+            Current users: {{ with query "marketsage_total_users" }}{{ . | first | value | printf "%.0f" }}{{ end }}
+            
+            **Planning Actions:**
+            - Review application scaling strategies
+            - Plan database performance optimizations
+            - Consider implementing user tier limits
+            - Review infrastructure auto-scaling policies
+
+      # Campaign Volume Planning
+      - alert: CampaignVolumeCapacityPlanning
+        expr: marketsage:campaign_volume_prediction_30d > 100000
+        for: 15m
+        labels:
+          severity: info
+          category: capacity_planning
+          resource: campaigns
+          runbook_url: "https://runbooks.marketsage.com/capacity/campaign-scaling"
+        annotations:
+          summary: "Campaign volume growth requiring processing capacity"
+          description: |
+            Campaign volume predicted to reach {{ $value | printf "%.0f" }} per day within 30 days.
+            Current volume: {{ with query "marketsage_campaigns_sent_today" }}{{ . | first | value | printf "%.0f" }}{{ end }} per day
+            
+            **Planning Actions:**
+            - Review email/SMS processing queues
+            - Plan for increased API rate limits
+            - Consider implementing campaign throttling
+            - Review third-party service limits
+
+  - name: resource_optimization_opportunities
+    rules:
+      # Over-provisioned Resources Detection
+      - alert: OverProvisionedCPU
+        expr: |
+          marketsage:cpu_usage_trend_24h < 20 and 
+          avg_over_time(marketsage:cpu_usage_trend_24h[7d]) < 25
+        for: 1h
+        labels:
+          severity: info
+          category: optimization
+          resource: cpu
+          runbook_url: "https://runbooks.marketsage.com/optimization/cpu"
+        annotations:
+          summary: "CPU resources appear over-provisioned"
+          description: |
+            CPU usage has been consistently low over the past 7 days.
+            Average usage: {{ $value | printf "%.1f" }}%
+            
+            **Optimization Opportunities:**
+            - Consider reducing CPU allocation
+            - Review if workload patterns have changed
+            - Redirect resources to other services
+            - Implement dynamic scaling policies
+
+      - alert: OverProvisionedMemory
+        expr: |
+          marketsage:memory_usage_trend_24h < 30 and 
+          avg_over_time(marketsage:memory_usage_trend_24h[7d]) < 35
+        for: 1h
+        labels:
+          severity: info
+          category: optimization
+          resource: memory
+          runbook_url: "https://runbooks.marketsage.com/optimization/memory"
+        annotations:
+          summary: "Memory resources appear over-provisioned"
+          description: |
+            Memory usage has been consistently low over the past 7 days.
+            Average usage: {{ $value | printf "%.1f" }}%
+            
+            **Optimization Opportunities:**
+            - Consider reducing memory allocation
+            - Review cache sizes and configurations
+            - Optimize application memory usage
+            - Redirect resources to other services
+
+      # Inefficient Resource Usage
+      - alert: InefficientContainerResources
+        expr: |
+          (
+            marketsage:container_cpu_trend_24h * 100 < 10 or
+            marketsage:container_memory_trend_24h / (1024^3) < 0.5
+          )
+        for: 2h
+        labels:
+          severity: info
+          category: optimization
+          resource: container
+          runbook_url: "https://runbooks.marketsage.com/optimization/containers"
+        annotations:
+          summary: "Container {{ $labels.name }} using resources inefficiently"
+          description: |
+            Container resource usage appears suboptimal.
+            CPU usage: {{ with query (printf "marketsage:container_cpu_trend_24h{name=\"%s\"}" $labels.name) }}{{ . | first | value | printf "%.2f" }}{{ end }}%
+            Memory usage: {{ with query (printf "marketsage:container_memory_trend_24h{name=\"%s\"}" $labels.name) }}{{ . | first | value | humanize1024 }}{{ end }}B
+            
+            **Optimization Opportunities:**
+            - Review container resource limits
+            - Consider container rightsizing
+            - Optimize application configuration
+            - Implement resource-based auto-scaling

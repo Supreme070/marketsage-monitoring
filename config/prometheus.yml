@@ -4,6 +4,7 @@ global:
   external_labels:
     replica: 'prometheus-1'
     cluster: 'marketsage-monitoring'
+    environment: 'production'
 
 rule_files:
   - "rules/*.yml"
@@ -28,6 +29,7 @@ scrape_configs:
     static_configs:
       - targets: ['alloy:12345']
     scrape_interval: 30s
+    scrape_timeout: 10s
 
   # MarketSage application is monitored via container metrics (cadvisor)
   # Health status can be checked via external monitoring if needed
@@ -80,3 +82,30 @@ scrape_configs:
     static_configs:
       - targets: ['tempo:3200']
     scrape_interval: 30s
+
+  # Business metrics for MarketSage KPIs
+  - job_name: 'business-metrics'
+    static_configs:
+      - targets: ['business-metrics-exporter:8080']
+    scrape_interval: 60s
+    metrics_path: /metrics
+    honor_timestamps: true
+    scrape_timeout: 30s
+
+  # Synthetic monitoring for uptime and user journey testing
+  - job_name: 'synthetic-monitoring'
+    static_configs:
+      - targets: ['synthetic-monitoring:8082']
+    scrape_interval: 60s
+    metrics_path: /metrics
+    honor_timestamps: true
+    scrape_timeout: 30s
+
+  # Compliance monitoring for GDPR, security, and cost tracking
+  - job_name: 'compliance-monitor'
+    static_configs:
+      - targets: ['compliance-monitor:8083']
+    scrape_interval: 120s
+    metrics_path: /metrics
+    honor_timestamps: true
+    scrape_timeout: 30s

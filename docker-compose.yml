@@ -11,7 +11,18 @@ services:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION=false
       - GF_SECURITY_ANONYMOUS_ENABLED=false
+      - GF_LOG_LEVEL=warn
+      - GF_ALERTING_ENABLED=true
+      - GF_UNIFIED_ALERTING_ENABLED=true
     command: ["grafana-server", "--config=/etc/grafana/grafana.ini", "--homepath=/usr/share/grafana"]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -78,10 +89,21 @@ services:
       - --storage.tsdb.path=/prometheus
       - --web.console.libraries=/etc/prometheus/console_libraries
       - --web.console.templates=/etc/prometheus/consoles
-      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=50GB
       - --web.enable-remote-write-receiver
       - --web.enable-lifecycle
       - --web.config.file=/etc/prometheus/web-config.yml
+      - --query.max-concurrency=20
+      - --query.max-samples=50000000
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./config/web-config.yml:/etc/prometheus/web-config.yml:ro
@@ -231,12 +253,107 @@ services:
     depends_on:
       - prometheus
 
-  
-    
+  # Business Metrics Exporter for MarketSage KPIs
+  business-metrics-exporter:
+    build:
+      context: ./services/business-metrics-exporter
+      dockerfile: Dockerfile
+    container_name: business-metrics-exporter
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DATABASE_URL=postgresql://marketsage:${POSTGRES_PASSWORD:-marketsage_password}@marketsage-db:5432/marketsage
+      - REDIS_HOST=marketsage-valkey
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - METRICS_COLLECTION_INTERVAL=300  # 5 minutes
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+    networks:
+      - monitoring
+      - marketsage_default
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  
+  # Synthetic Monitoring for uptime and user journey testing
+  synthetic-monitoring:
+    build:
+      context: ./services/synthetic-monitoring
+      dockerfile: Dockerfile
+    container_name: synthetic-monitoring
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - NODE_ENV=production
+      - PORT=8082
+      - MARKETSAGE_BASE_URL=http://marketsage-web:3000
+      - CHECK_SSL_DOMAINS=marketsage.africa,www.marketsage.africa
+      - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - ./services/synthetic-monitoring/logs:/app/logs
+    networks:
+      - monitoring
+      - marketsage_default
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  
+  # Compliance and Cost Monitoring
+  compliance-monitor:
+    build:
+      context: ./services/compliance-monitor
+      dockerfile: Dockerfile
+    container_name: compliance-monitor
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      - NODE_ENV=production
+      - PORT=8083
+      - DATABASE_URL=postgresql://marketsage:${POSTGRES_PASSWORD:-marketsage_password}@marketsage-db:5432/marketsage
+      - REDIS_HOST=marketsage-valkey
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - ./services/compliance-monitor/logs:/app/logs
+    networks:
+      - monitoring
+      - marketsage_default
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 128M
 
 # Docker secrets for sensitive data
 secrets:

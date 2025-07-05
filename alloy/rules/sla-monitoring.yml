@@ -1,0 +1,247 @@
+groups:
+  - name: sla_monitoring
+    rules:
+      # SLA Recording Rules - Calculate availability and performance SLIs
+      - record: marketsage:availability_sli
+        expr: |
+          (
+            sum(rate(prometheus_http_requests_total{job="business-metrics", code=~"2.."}[5m])) /
+            sum(rate(prometheus_http_requests_total{job="business-metrics"}[5m]))
+          ) * 100
+        labels:
+          service: "marketsage"
+          sli_type: "availability"
+
+      - record: marketsage:performance_sli
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(marketsage_response_time_seconds_bucket[5m])) by (le)
+          ) * 1000
+        labels:
+          service: "marketsage"
+          sli_type: "performance"
+
+      - record: marketsage:error_rate_sli
+        expr: |
+          (
+            sum(rate(marketsage_synthetic_error_rate[5m])) /
+            sum(rate(marketsage_uptime_status[5m]))
+          ) * 100
+        labels:
+          service: "marketsage"
+          sli_type: "error_rate"
+
+      # Business SLA Recording Rules
+      - record: marketsage:campaign_delivery_sla
+        expr: |
+          (
+            sum(marketsage_campaigns_sent_today) /
+            sum(marketsage_total_campaigns{status="scheduled"})
+          ) * 100
+        labels:
+          service: "marketsage"
+          sla_type: "campaign_delivery"
+
+      - record: marketsage:ai_accuracy_sla
+        expr: marketsage_ai_accuracy
+        labels:
+          service: "marketsage"
+          sla_type: "ai_accuracy"
+
+      # Composite SLA Score
+      - record: marketsage:composite_sla_score
+        expr: |
+          (
+            marketsage:availability_sli * 0.4 +
+            (100 - marketsage:performance_sli / 20) * 0.3 +
+            (100 - marketsage:error_rate_sli) * 0.3
+          )
+        labels:
+          service: "marketsage"
+          sla_type: "composite"
+
+  - name: sla_alerts
+    rules:
+      # Critical SLA Violations
+      - alert: SLAAvailabilityBreach
+        expr: marketsage:availability_sli < 99.5
+        for: 1m
+        labels:
+          severity: critical
+          service: marketsage
+          sla_type: availability
+          runbook_url: "https://runbooks.marketsage.com/sla/availability"
+          escalation_level: "immediate"
+        annotations:
+          summary: "MarketSage availability SLA breach detected"
+          description: |
+            Availability SLI is {{ $value }}% which is below the 99.5% SLA threshold.
+            
+            **Impact**: Critical service degradation affecting users
+            **Action Required**: Immediate investigation and resolution
+            **Escalation**: Page on-call engineer immediately
+            
+            Runbook: {{ $labels.runbook_url }}
+            Dashboard: http://grafana:3000/d/sla-overview
+          alert_id: "SLA001"
+
+      - alert: SLAPerformanceBreach
+        expr: marketsage:performance_sli > 2000
+        for: 2m
+        labels:
+          severity: warning
+          service: marketsage
+          sla_type: performance
+          runbook_url: "https://runbooks.marketsage.com/sla/performance"
+          escalation_level: "standard"
+        annotations:
+          summary: "MarketSage performance SLA breach detected"
+          description: |
+            95th percentile response time is {{ $value }}ms which exceeds the 2000ms SLA threshold.
+            
+            **Impact**: User experience degradation
+            **Action Required**: Investigate performance bottlenecks
+            **Escalation**: Notify engineering team within 5 minutes
+            
+            Runbook: {{ $labels.runbook_url }}
+            Dashboard: http://grafana:3000/d/performance-overview
+          alert_id: "SLA002"
+
+      - alert: SLAErrorRateBreach
+        expr: marketsage:error_rate_sli > 1.0
+        for: 1m
+        labels:
+          severity: critical
+          service: marketsage
+          sla_type: error_rate
+          runbook_url: "https://runbooks.marketsage.com/sla/error-rate"
+          escalation_level: "immediate"
+        annotations:
+          summary: "MarketSage error rate SLA breach detected"
+          description: |
+            Error rate is {{ $value }}% which exceeds the 1.0% SLA threshold.
+            
+            **Impact**: Service reliability degradation
+            **Action Required**: Immediate error investigation
+            **Escalation**: Page on-call engineer immediately
+            
+            Runbook: {{ $labels.runbook_url }}
+            Dashboard: http://grafana:3000/d/error-analysis
+          alert_id: "SLA003"
+
+      # Business SLA Alerts
+      - alert: CampaignDeliverySLABreach
+        expr: marketsage:campaign_delivery_sla < 95
+        for: 5m
+        labels:
+          severity: warning
+          service: marketsage
+          sla_type: campaign_delivery
+          runbook_url: "https://runbooks.marketsage.com/business/campaign-delivery"
+          escalation_level: "business"
+        annotations:
+          summary: "Campaign delivery SLA breach detected"
+          description: |
+            Campaign delivery rate is {{ $value }}% which is below the 95% SLA threshold.
+            
+            **Business Impact**: Customer satisfaction at risk
+            **Action Required**: Review campaign processing pipeline
+            **Escalation**: Notify product team
+            
+            Runbook: {{ $labels.runbook_url }}
+            Dashboard: http://grafana:3000/d/campaign-metrics
+          alert_id: "SLA004"
+
+      - alert: AIAccuracySLABreach
+        expr: marketsage:ai_accuracy_sla < 80
+        for: 10m
+        labels:
+          severity: warning
+          service: marketsage
+          sla_type: ai_accuracy
+          runbook_url: "https://runbooks.marketsage.com/ai/accuracy"
+          escalation_level: "ai_team"
+        annotations:
+          summary: "AI accuracy SLA breach detected"
+          description: |
+            AI model accuracy is {{ $value }}% which is below the 80% SLA threshold.
+            
+            **Business Impact**: AI predictions quality degraded
+            **Action Required**: Review model performance and retrain if needed
+            **Escalation**: Notify AI/ML team
+            
+            Runbook: {{ $labels.runbook_url }}
+            Dashboard: http://grafana:3000/d/ai-metrics
+          alert_id: "SLA005"
+
+      # Composite SLA Health Check
+      - alert: CompositeSLADegradation
+        expr: marketsage:composite_sla_score < 95
+        for: 3m
+        labels:
+          severity: warning
+          service: marketsage
+          sla_type: composite
+          runbook_url: "https://runbooks.marketsage.com/sla/composite"
+          escalation_level: "management"
+        annotations:
+          summary: "Overall service SLA degradation detected"
+          description: |
+            Composite SLA score is {{ $value }}% which indicates overall service degradation.
+            
+            **Impact**: Multiple service aspects are underperforming
+            **Action Required**: Comprehensive service health review
+            **Escalation**: Notify engineering management
+            
+            Runbook: {{ $labels.runbook_url }}
+            Dashboard: http://grafana:3000/d/sla-overview
+          alert_id: "SLA006"
+
+  - name: sla_predictive_alerts
+    rules:
+      # Predictive SLA Alerts - Fire before SLA is actually breached
+      - alert: SLAAvailabilityTrend
+        expr: |
+          predict_linear(marketsage:availability_sli[30m], 1800) < 99.5
+        for: 5m
+        labels:
+          severity: warning
+          service: marketsage
+          sla_type: availability_predictive
+          runbook_url: "https://runbooks.marketsage.com/sla/availability-trending"
+          escalation_level: "proactive"
+        annotations:
+          summary: "Availability SLA trending towards breach"
+          description: |
+            Based on current trends, availability SLA may breach within 30 minutes.
+            Current availability: {{ with query "marketsage:availability_sli" }}{{ . | first | value | printf "%.2f" }}{{ end }}%
+            Predicted availability in 30min: {{ $value | printf "%.2f" }}%
+            
+            **Action Required**: Proactive investigation recommended
+            **Escalation**: Inform on-call engineer
+            
+            Runbook: {{ $labels.runbook_url }}
+          alert_id: "SLA007"
+
+      - alert: SLAPerformanceTrend
+        expr: |
+          predict_linear(marketsage:performance_sli[30m], 1800) > 2000
+        for: 5m
+        labels:
+          severity: warning
+          service: marketsage
+          sla_type: performance_predictive
+          runbook_url: "https://runbooks.marketsage.com/sla/performance-trending"
+          escalation_level: "proactive"
+        annotations:
+          summary: "Performance SLA trending towards breach"
+          description: |
+            Based on current trends, performance SLA may breach within 30 minutes.
+            Current 95th percentile: {{ with query "marketsage:performance_sli" }}{{ . | first | value | printf "%.0f" }}{{ end }}ms
+            Predicted 95th percentile in 30min: {{ $value | printf "%.0f" }}ms
+            
+            **Action Required**: Proactive performance optimization
+            **Escalation**: Inform engineering team
+            
+            Runbook: {{ $labels.runbook_url }}
+          alert_id: "SLA008"

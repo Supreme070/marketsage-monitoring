@@ -1,0 +1,310 @@
+global:
+  smtp_smarthost: 'smtp.zoho.com:587'
+  smtp_from: 'alerts@marketsage.africa'
+  smtp_auth_username: 'alerts@marketsage.africa'
+  smtp_auth_password_file: '/run/secrets/smtp_password'
+  smtp_require_tls: true
+  
+  # Global webhook for all notifications
+  webhook_url_file: '/run/secrets/slack_webhook_url'
+
+# Escalation templates
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Routing configuration with escalation policies
+route:
+  group_by: ['alertname', 'service', 'severity']
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 12h
+  receiver: 'default-receiver'
+  
+  routes:
+    # Critical SLA alerts - immediate escalation
+    - match:
+        severity: critical
+        escalation_level: immediate
+      receiver: 'sla-critical-immediate'
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 5m
+      continue: true
+
+    # Standard SLA alerts - escalation chain
+    - match:
+        severity: warning
+        escalation_level: standard
+      receiver: 'sla-warning-standard'
+      group_wait: 30s
+      group_interval: 3m
+      repeat_interval: 15m
+      continue: true
+
+    # Business SLA alerts
+    - match:
+        escalation_level: business
+      receiver: 'business-team'
+      group_wait: 1m
+      group_interval: 10m
+      repeat_interval: 30m
+      continue: true
+
+    # AI/ML team alerts
+    - match:
+        escalation_level: ai_team
+      receiver: 'ai-ml-team'
+      group_wait: 2m
+      group_interval: 15m
+      repeat_interval: 1h
+      continue: true
+
+    # Management alerts
+    - match:
+        escalation_level: management
+      receiver: 'management-team'
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 2h
+      continue: false
+
+    # Proactive alerts
+    - match:
+        escalation_level: proactive
+      receiver: 'proactive-monitoring'
+      group_wait: 2m
+      group_interval: 10m
+      repeat_interval: 1h
+      continue: true
+
+    # Infrastructure alerts
+    - match_re:
+        alertname: '^(HighCPU|HighMemory|DiskSpace|DatabaseDown|RedisDown).*'
+      receiver: 'infrastructure-team'
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 30m
+      continue: true
+
+    # Application alerts
+    - match_re:
+        alertname: '^(ApplicationDown|HighErrorRate|SlowResponse).*'
+      receiver: 'application-team'
+      group_wait: 30s
+      group_interval: 3m
+      repeat_interval: 15m
+      continue: true
+
+# Alert suppression and inhibition rules
+inhibit_rules:
+  # Suppress warning alerts when critical alerts are firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['service', 'alertname']
+
+  # Suppress performance alerts when availability is down
+  - source_match:
+      alertname: 'SLAAvailabilityBreach'
+    target_match_re:
+      alertname: '^(SLAPerformanceBreach|HighResponseTime).*'
+    equal: ['service']
+
+  # Suppress individual component alerts when composite SLA is degraded
+  - source_match:
+      alertname: 'CompositeSLADegradation'
+    target_match_re:
+      alertname: '^(SLA.*Breach).*'
+    equal: ['service']
+
+# Receiver definitions with escalation chains
+receivers:
+  # Default receiver
+  - name: 'default-receiver'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#alerts-general'
+        title: '{{ .GroupLabels.alertname }} - {{ .GroupLabels.severity }}'
+        text: |
+          {{ range .Alerts }}
+          **Alert**: {{ .Annotations.summary }}
+          **Description**: {{ .Annotations.description }}
+          **Service**: {{ .Labels.service }}
+          **Started**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}**Runbook**: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+
+  # Critical SLA alerts with immediate escalation
+  - name: 'sla-critical-immediate'
+    # Immediate notification channels
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#alerts-critical'
+        title: '🚨 CRITICAL SLA BREACH - {{ .GroupLabels.alertname }}'
+        text: |
+          ⚠️ **IMMEDIATE ACTION REQUIRED** ⚠️
+          
+          {{ range .Alerts }}
+          **Alert**: {{ .Annotations.summary }}
+          **Description**: {{ .Annotations.description }}
+          **Service**: {{ .Labels.service }}
+          **SLA Type**: {{ .Labels.sla_type }}
+          **Alert ID**: {{ .Labels.alert_id }}
+          **Started**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}**Runbook**: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+          
+          @channel @here
+        send_resolved: true
+
+    # Email to on-call engineers
+    email_configs:
+      - to: 'oncall@marketsage.africa'
+        subject: '🚨 CRITICAL SLA BREACH - {{ .GroupLabels.alertname }}'
+        body: |
+          CRITICAL SLA BREACH DETECTED
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Service: {{ .Labels.service }}
+          SLA Type: {{ .Labels.sla_type }}
+          Alert ID: {{ .Labels.alert_id }}
+          Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}Runbook: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+          
+          IMMEDIATE ACTION REQUIRED - Please acknowledge within 5 minutes.
+
+    # PagerDuty integration (webhook simulation)
+    webhook_configs:
+      - url: 'https://events.pagerduty.com/v2/enqueue'
+        http_config:
+          basic_auth:
+            username: 'integration_key'
+            password_file: '/run/secrets/pagerduty_key'
+
+  # Standard SLA alerts with escalation chain
+  - name: 'sla-warning-standard'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#alerts-sla'
+        title: '⚠️ SLA Warning - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          **Alert**: {{ .Annotations.summary }}
+          **Description**: {{ .Annotations.description }}
+          **Service**: {{ .Labels.service }}
+          **SLA Type**: {{ .Labels.sla_type }}
+          **Alert ID**: {{ .Labels.alert_id }}
+          **Started**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}**Runbook**: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+        send_resolved: true
+
+    email_configs:
+      - to: 'engineering@marketsage.africa'
+        subject: 'SLA Warning - {{ .GroupLabels.alertname }}'
+
+  # Business team alerts
+  - name: 'business-team'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#business-alerts'
+        title: '📊 Business SLA Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          **Business Impact Alert**
+          
+          **Alert**: {{ .Annotations.summary }}
+          **Description**: {{ .Annotations.description }}
+          **Service**: {{ .Labels.service }}
+          **SLA Type**: {{ .Labels.sla_type }}
+          **Started**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}**Runbook**: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+
+    email_configs:
+      - to: 'product@marketsage.africa, business@marketsage.africa'
+        subject: 'Business SLA Alert - {{ .GroupLabels.alertname }}'
+
+  # AI/ML team alerts
+  - name: 'ai-ml-team'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#ai-ml-alerts'
+        title: '🤖 AI/ML Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          **AI/ML Performance Alert**
+          
+          **Alert**: {{ .Annotations.summary }}
+          **Description**: {{ .Annotations.description }}
+          **Service**: {{ .Labels.service }}
+          **Started**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}**Runbook**: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+
+    email_configs:
+      - to: 'ai-team@marketsage.africa'
+        subject: 'AI/ML Alert - {{ .GroupLabels.alertname }}'
+
+  # Management team alerts
+  - name: 'management-team'
+    email_configs:
+      - to: 'management@marketsage.africa'
+        subject: 'Service SLA Degradation - {{ .GroupLabels.alertname }}'
+        body: |
+          MANAGEMENT ATTENTION REQUIRED
+          
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Service: {{ .Labels.service }}
+          Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+          
+          Multiple service aspects may be degraded. Review recommended.
+
+  # Proactive monitoring alerts
+  - name: 'proactive-monitoring'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#proactive-alerts'
+        title: '🔮 Predictive Alert - {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          **Proactive Monitoring Alert**
+          
+          **Alert**: {{ .Annotations.summary }}
+          **Description**: {{ .Annotations.description }}
+          **Service**: {{ .Labels.service }}
+          **Started**: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ if .Labels.runbook_url }}**Runbook**: {{ .Labels.runbook_url }}{{ end }}
+          {{ end }}
+
+  # Infrastructure team alerts
+  - name: 'infrastructure-team'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#infrastructure-alerts'
+        title: '🏗️ Infrastructure Alert - {{ .GroupLabels.alertname }}'
+
+    email_configs:
+      - to: 'infrastructure@marketsage.africa'
+        subject: 'Infrastructure Alert - {{ .GroupLabels.alertname }}'
+
+  # Application team alerts
+  - name: 'application-team'
+    webhook_configs:
+      - url_file: '/run/secrets/slack_webhook_url'
+        channel: '#application-alerts'
+        title: '💻 Application Alert - {{ .GroupLabels.alertname }}'
+
+    email_configs:
+      - to: 'engineering@marketsage.africa'
+        subject: 'Application Alert - {{ .GroupLabels.alertname }}'
+
+# Time-based escalation (simulated via repeat_interval and routing)
+# In production, you'd use tools like PagerDuty for true escalation policies

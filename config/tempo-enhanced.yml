@@ -1,0 +1,138 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9095
+  log_level: info
+
+distributor:
+  receivers:
+    # OpenTelemetry receivers
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+          cors:
+            allowed_origins:
+              - "http://localhost:3000"
+              - "http://marketsage-web:3000"
+            allowed_headers:
+              - "*"
+    # Jaeger receivers
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: 0.0.0.0:14268
+        grpc:
+          endpoint: 0.0.0.0:14250
+        thrift_binary:
+          endpoint: 0.0.0.0:6832
+        thrift_compact:
+          endpoint: 0.0.0.0:6831
+    # Zipkin receiver
+    zipkin:
+      endpoint: 0.0.0.0:9411
+
+ingester:
+  trace_idle_period: 10s
+  max_block_bytes: 1_000_000
+  max_block_duration: 5m
+  complete_block_timeout: 1m
+  flush_check_period: 10s
+
+compactor:
+  compaction:
+    compaction_window: 1h
+    max_block_bytes: 100_000_000
+    block_retention: 48h
+    compacted_block_retention: 1h
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: marketsage-monitoring
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+        headers:
+          X-Scope-OrgID: "1"
+  traces_storage:
+    path: /var/tempo/generator/traces
+  
+  # Service graph metrics
+  processor:
+    service_graphs:
+      histogram_buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
+      dimensions:
+        - server
+        - client
+        - messaging_system
+        - messaging_destination
+    span_metrics:
+      histogram_buckets: [0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+      dimensions:
+        - service.name
+        - service.namespace
+        - service.version
+        - deployment.environment
+        - http.method
+        - http.status_code
+
+querier:
+  max_concurrent_queries: 20
+  search:
+    prefer_self: 10
+    max_result_limit: 1000
+    default_result_limit: 100
+
+query_frontend:
+  search:
+    duration_slo: 5s
+    throughput_bytes_slo: 1.073741824e+09
+  trace_by_id:
+    duration_slo: 5s
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    block:
+      version: vParquet4
+      bloom_filter_false_positive_rate: 0.05
+      bloom_filter_shard_size_bytes: 100_000
+      v2_index_downsample_bytes: 1000
+      v2_index_page_size_bytes: 250
+      v2_encoding: zstd
+    wal:
+      path: /var/tempo/wal
+      v2_encoding: snappy
+    pool:
+      max_workers: 100
+      queue_depth: 10000
+
+overrides:
+  defaults:
+    # Global limits
+    ingestion_rate_strategy: local
+    ingestion_rate_limit_bytes: 20000000
+    ingestion_burst_size_bytes: 30000000
+    max_bytes_per_trace: 5000000
+    max_traces_per_user: 10000
+    
+    # Search limits
+    max_search_duration: 168h  # 1 week
+    max_bytes_per_tag_values_query: 5000000
+    
+    # Metrics generator limits
+    metrics_generator_ring_size: 1
+    metrics_generator_processor_service_graphs_histogram_buckets: [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
+    metrics_generator_processor_span_metrics_histogram_buckets: [0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
+
+# Multi-tenancy configuration (disabled for single-tenant)
+multitenancy_enabled: false
