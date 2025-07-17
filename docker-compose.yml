@@ -355,6 +355,48 @@ services:
           cpus: '0.2'
           memory: 128M
 
+  # MCP Monitor for Model Context Protocol observability
+  mcp-monitor:
+    build:
+      context: ./services/mcp-monitor
+      dockerfile: Dockerfile
+    container_name: mcp-monitor
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - NODE_ENV=production
+      - PORT=8084
+      - LOG_LEVEL=info
+      - OTEL_EXPORTER_JAEGER_ENDPOINT=http://tempo:14268/api/traces
+      - OTEL_SERVICE_NAME=mcp-monitor
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=mcp-monitor,service.version=1.0.0
+    volumes:
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - ./services/mcp-monitor/logs:/app/logs
+      - ./services/mcp-monitor/config:/app/config:ro
+    networks:
+      - monitoring
+      - marketsage_default
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
 # Docker secrets for sensitive data
 secrets:
   grafana_admin_password:

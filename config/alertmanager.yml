@@ -8,12 +8,40 @@ global:
     insecure_skip_verify: true
 
 route:
-  group_by: ['alertname']
+  group_by: ['alertname', 'service']
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 1h
   receiver: 'web.hook'
   routes:
+    # MCP-specific routing
+    - match:
+        service: mcp-monitor
+      receiver: 'mcp-alerts'
+      group_by: ['alertname', 'category']
+      routes:
+        - match:
+            severity: critical
+            category: security
+          receiver: 'mcp-security-critical'
+          group_wait: 0s
+          repeat_interval: 15m
+        - match:
+            severity: critical
+          receiver: 'mcp-critical'
+          group_wait: 30s
+          repeat_interval: 30m
+        - match:
+            category: sla
+          receiver: 'mcp-sla-alerts'
+          group_wait: 2m
+          repeat_interval: 2h
+        - match:
+            category: predictive
+          receiver: 'mcp-predictive'
+          group_wait: 5m
+          repeat_interval: 4h
+    # General routing
     - match:
         severity: critical
       receiver: 'critical-alerts'
@@ -112,9 +140,145 @@ receivers:
           {{ end }}
         color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
 
+  # MCP-specific receivers
+  - name: 'mcp-alerts'
+    slack_configs:
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#mcp-monitoring'
+        title: 'MCP Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Category:* {{ .Labels.category }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Severity:* {{ .Labels.severity }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ if .Annotations.dashboard_url }}*Dashboard:* {{ .Annotations.dashboard_url }}{{ end }}
+          {{ end }}
+        color: '{{ if eq .Labels.severity "critical" }}danger{{ else if eq .Labels.severity "warning" }}warning{{ else }}good{{ end }}'
+
+  - name: 'mcp-security-critical'
+    email_configs:
+      - to: 'security@marketsage.africa,supreme@marketsage.africa'
+        html: |
+          <h2 style="color: #d32f2f;">🚨 CRITICAL MCP Security Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #d32f2f; padding-left: 10px; margin: 10px 0;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+            <p><strong>Category:</strong> {{ .Labels.category }}</p>
+            <p><strong>Time:</strong> {{ .StartsAt }}</p>
+            {{ if .Annotations.runbook_url }}<p><a href="{{ .Annotations.runbook_url }}">🔗 Security Runbook</a></p>{{ end }}
+          </div>
+          {{ end }}
+    slack_configs:
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#security-alerts'
+        title: '🚨 CRITICAL MCP Security Alert'
+        text: |
+          {{ range .Alerts }}
+          *IMMEDIATE ACTION REQUIRED*
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Time:* {{ .StartsAt }}
+          {{ if .Annotations.runbook_url }}*Security Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        color: 'danger'
+
+  - name: 'mcp-critical'
+    email_configs:
+      - to: 'oncall@marketsage.africa,supreme@marketsage.africa'
+        html: |
+          <h2 style="color: #ff5722;">🔥 Critical MCP Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #ff5722; padding-left: 10px; margin: 10px 0;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>Category:</strong> {{ .Labels.category }}</p>
+            <p><strong>Time:</strong> {{ .StartsAt }}</p>
+            {{ if .Annotations.runbook_url }}<p><a href="{{ .Annotations.runbook_url }}">📖 Runbook</a></p>{{ end }}
+            {{ if .Annotations.dashboard_url }}<p><a href="{{ .Annotations.dashboard_url }}">📊 Dashboard</a></p>{{ end }}
+          </div>
+          {{ end }}
+    slack_configs:
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#mcp-critical'
+        title: '🔥 Critical MCP Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Category:* {{ .Labels.category }}
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ if .Annotations.dashboard_url }}*Dashboard:* {{ .Annotations.dashboard_url }}{{ end }}
+          {{ end }}
+        color: 'danger'
+
+  - name: 'mcp-sla-alerts'
+    email_configs:
+      - to: 'sla-team@marketsage.africa,supreme@marketsage.africa'
+        html: |
+          <h2 style="color: #ff9800;">📈 MCP SLA Alert</h2>
+          {{ range .Alerts }}
+          <div style="border-left: 4px solid #ff9800; padding-left: 10px; margin: 10px 0;">
+            <h3>{{ .Annotations.summary }}</h3>
+            <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+            <p><strong>SLA Impact:</strong> {{ .Labels.sla_impact }}</p>
+            <p><strong>Time:</strong> {{ .StartsAt }}</p>
+            {{ if .Annotations.runbook_url }}<p><a href="{{ .Annotations.runbook_url }}">📖 SLA Runbook</a></p>{{ end }}
+          </div>
+          {{ end }}
+    slack_configs:
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#sla-monitoring'
+        title: '📈 MCP SLA Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *SLA Breach Detected*
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Impact:* SLA target not met
+          {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        color: 'warning'
+
+  - name: 'mcp-predictive'
+    slack_configs:
+      - api_url_file: '/run/secrets/slack_webhook_url'
+        channel: '#mcp-predictive'
+        title: '🔮 MCP Predictive Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Trend Analysis*
+          *Alert:* {{ .Annotations.summary }}
+          *Prediction:* {{ .Annotations.description }}
+          *Category:* {{ .Labels.category }}
+          {{ if .Annotations.runbook_url }}*Planning Guide:* {{ .Annotations.runbook_url }}{{ end }}
+          {{ end }}
+        color: 'good'
+
 inhibit_rules:
   - source_match:
       severity: 'critical'
     target_match:
       severity: 'warning'
-    equal: ['alertname', 'dev', 'instance']
+    equal: ['alertname', 'service', 'instance']
+  
+  # MCP-specific inhibition rules
+  - source_match:
+      service: 'mcp-monitor'
+      alertname: 'MCPServiceDown'
+    target_match:
+      service: 'mcp-monitor'
+    equal: ['instance']
+  
+  - source_match:
+      service: 'mcp-monitor'
+      category: 'security'
+      severity: 'critical'
+    target_match:
+      service: 'mcp-monitor'
+      category: 'security'
+      severity: 'warning'
+    equal: ['alertname']

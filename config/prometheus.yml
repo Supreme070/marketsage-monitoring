@@ -109,3 +109,17 @@ scrape_configs:
     metrics_path: /metrics
     honor_timestamps: true
     scrape_timeout: 30s
+
+  # MCP monitoring for Model Context Protocol observability
+  - job_name: 'mcp-monitor'
+    static_configs:
+      - targets: ['mcp-monitor:8084']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    honor_timestamps: true
+    scrape_timeout: 10s
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'mcp_.*'
+        target_label: __tmp_mcp_metric
+        replacement: 'true'

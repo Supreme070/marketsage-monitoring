@@ -1,0 +1,430 @@
+groups:
+  - name: mcp.critical
+    interval: 30s
+    rules:
+      # Critical: High error rate
+      - alert: MCPHighErrorRate
+        expr: |
+          (
+            sum(rate(mcp_jsonrpc_requests_total{status="error"}[5m])) /
+            sum(rate(mcp_jsonrpc_requests_total[5m]))
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: mcp-monitor
+          category: reliability
+        annotations:
+          summary: "MCP error rate is critically high"
+          description: "MCP JSON-RPC error rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 10%)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-high-error-rate"
+          dashboard_url: "http://localhost:3000/d/mcp-overview"
+
+      # Critical: Service unavailable
+      - alert: MCPServiceDown
+        expr: up{job="mcp-monitor"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mcp-monitor
+          category: availability
+        annotations:
+          summary: "MCP monitoring service is down"
+          description: "MCP monitor service has been unreachable for more than 1 minute"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-service-down"
+
+      # Critical: Suspicious activity spike
+      - alert: MCPSuspiciousActivitySpike
+        expr: |
+          rate(mcp_suspicious_activity_total{severity="high"}[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          service: mcp-monitor
+          category: security
+        annotations:
+          summary: "High severity suspicious activity detected in MCP"
+          description: "{{ $value }} high-severity suspicious activities detected per second over the last 5 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-security-incident"
+
+      # Critical: Authentication failures
+      - alert: MCPAuthenticationFailures
+        expr: |
+          rate(mcp_authentication_attempts_total{result="failed"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: critical
+          service: mcp-monitor
+          category: security
+        annotations:
+          summary: "High rate of MCP authentication failures"
+          description: "{{ $value }} authentication failures per second over the last 5 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-auth-failures"
+
+  - name: mcp.warning
+    interval: 1m
+    rules:
+      # Warning: High latency
+      - alert: MCPHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(mcp_jsonrpc_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: performance
+        annotations:
+          summary: "MCP response latency is high"
+          description: "95th percentile latency is {{ $value }}s (threshold: 2s)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-high-latency"
+
+      # Warning: High request rate
+      - alert: MCPHighRequestRate
+        expr: |
+          sum(rate(mcp_jsonrpc_requests_total[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: performance
+        annotations:
+          summary: "MCP request rate is unusually high"
+          description: "Current request rate: {{ $value }} requests/second (threshold: 1000 req/s)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-high-load"
+
+      # Warning: Large payload detected
+      - alert: MCPLargePayloads
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(mcp_payload_size_bytes_bucket[5m])) by (le)
+          ) > 10000000
+        for: 3m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: performance
+        annotations:
+          summary: "MCP payloads are unusually large"
+          description: "95th percentile payload size is {{ $value }}B (threshold: 10MB)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-large-payloads"
+
+      # Warning: Sensitive data detected
+      - alert: MCPSensitiveDataDetected
+        expr: |
+          rate(mcp_sensitive_data_detected_total{severity="high"}[5m]) > 0
+        for: 0s
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: security
+        annotations:
+          summary: "Sensitive data detected in MCP payloads"
+          description: "{{ $value }} high-severity sensitive data detections per second"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-sensitive-data"
+
+      # Warning: Agent behavior anomaly
+      - alert: MCPAgentAnomalyDetected
+        expr: |
+          increase(mcp_agent_resource_access_total{access_result="failed"}[10m]) > 50
+        for: 2m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: behavior
+        annotations:
+          summary: "MCP agent showing anomalous behavior"
+          description: "Agent {{ $labels.agent_id }} has {{ $value }} failed resource access attempts in 10 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-agent-anomaly"
+
+  - name: mcp.info
+    interval: 5m
+    rules:
+      # Info: Low cache hit rate
+      - alert: MCPLowCacheHitRate
+        expr: |
+          avg(mcp_resource_cache_hit_rate) < 0.7
+        for: 10m
+        labels:
+          severity: info
+          service: mcp-monitor
+          category: performance
+        annotations:
+          summary: "MCP cache hit rate is low"
+          description: "Average cache hit rate is {{ $value | humanizePercentage }} (threshold: 70%)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-cache-optimization"
+
+      # Info: New agent detected
+      - alert: MCPNewAgentDetected
+        expr: |
+          increase(mcp_unique_agents_active[1h]) > 0
+        for: 0s
+        labels:
+          severity: info
+          service: mcp-monitor
+          category: monitoring
+        annotations:
+          summary: "New MCP agent detected"
+          description: "{{ $value }} new unique agents detected in the last hour"
+
+      # Info: Token expiration warning
+      - alert: MCPTokenExpirationWarning
+        expr: |
+          rate(mcp_token_usage_total{operation="refresh"}[5m]) > 1
+        for: 5m
+        labels:
+          severity: info
+          service: mcp-monitor
+          category: maintenance
+        annotations:
+          summary: "MCP tokens requiring frequent refresh"
+          description: "{{ $value }} token refresh operations per second, indicating potential expiration issues"
+
+  - name: mcp.business
+    interval: 5m
+    rules:
+      # Business: Resource access patterns
+      - alert: MCPUnusualResourceAccess
+        expr: |
+          sum by (resource_type) (rate(mcp_resource_access_frequency_total[1h])) > 
+          sum by (resource_type) (rate(mcp_resource_access_frequency_total[24h] offset 24h)) * 3
+        for: 15m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: business
+        annotations:
+          summary: "Unusual resource access pattern detected"
+          description: "{{ $labels.resource_type }} access rate is 3x higher than yesterday: {{ $value }} req/s"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-resource-patterns"
+
+      # Business: Data volume spike
+      - alert: MCPDataVolumeSpike
+        expr: |
+          rate(mcp_data_volume_transferred_bytes_total[1h]) > 
+          rate(mcp_data_volume_transferred_bytes_total[24h] offset 24h) * 5
+        for: 30m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: business
+        annotations:
+          summary: "MCP data transfer volume spike"
+          description: "Data transfer rate is 5x higher than yesterday: {{ $value }}B/s"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-data-volume"
+
+  - name: mcp.sla
+    interval: 1m
+    rules:
+      # SLA: Success rate below threshold
+      - alert: MCPSuccessRateBelowSLA
+        expr: |
+          (
+            sum(rate(mcp_jsonrpc_requests_total{status="success"}[5m])) /
+            sum(rate(mcp_jsonrpc_requests_total[5m]))
+          ) < 0.995
+        for: 3m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: sla
+          sla_impact: "true"
+        annotations:
+          summary: "MCP success rate below SLA"
+          description: "Success rate {{ $value | humanizePercentage }} is below 99.5% SLA target"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-sla-breach"
+
+      # SLA: Response time SLA breach
+      - alert: MCPResponseTimeSLABreach
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(mcp_jsonrpc_request_duration_seconds_bucket[5m])) by (le)
+          ) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: sla
+          sla_impact: "true"
+        annotations:
+          summary: "MCP response time SLA breach"
+          description: "99th percentile response time {{ $value }}s exceeds 5s SLA target"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-response-time-sla"
+
+  - name: mcp.predictive
+    interval: 5m
+    rules:
+      # Predictive: Request rate trending up
+      - alert: MCPRequestRateTrendingUp
+        expr: |
+          predict_linear(
+            sum(rate(mcp_jsonrpc_requests_total[5m]))[30m:1m], 
+            3600
+          ) > 2000
+        for: 10m
+        labels:
+          severity: info
+          service: mcp-monitor
+          category: predictive
+        annotations:
+          summary: "MCP request rate trending upward"
+          description: "Current trend predicts {{ $value }} req/s in 1 hour (threshold: 2000 req/s)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-capacity-planning"
+
+      # Predictive: Error rate trending up
+      - alert: MCPErrorRateTrendingUp
+        expr: |
+          predict_linear(
+            rate(mcp_jsonrpc_requests_total{status="error"}[5m])[30m:1m], 
+            1800
+          ) > 10
+        for: 15m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: predictive
+        annotations:
+          summary: "MCP error rate trending upward"
+          description: "Current trend predicts {{ $value }} errors/s in 30 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-error-prevention"
+
+  - name: mcp.tasks
+    interval: 30s
+    rules:
+      # Critical: High task failure rate
+      - alert: MCPHighTaskFailureRate
+        expr: |
+          (
+            sum(rate(mcp_task_execution_total{status="failed"}[5m])) /
+            sum(rate(mcp_task_execution_total[5m]))
+          ) > 0.2
+        for: 2m
+        labels:
+          severity: critical
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "MCP task failure rate is critically high"
+          description: "Task failure rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 20%)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-task-failures"
+
+      # Critical: Tasks stuck/hanging
+      - alert: MCPTasksStuck
+        expr: |
+          sum(mcp_active_tasks) > 100
+        for: 10m
+        labels:
+          severity: critical
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "Large number of MCP tasks appear stuck"
+          description: "{{ $value }} tasks have been active for more than 10 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-stuck-tasks"
+
+      # Warning: High task retry rate
+      - alert: MCPHighTaskRetryRate
+        expr: |
+          sum(rate(mcp_task_retry_total[5m])) > 5
+        for: 3m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "High rate of MCP task retries"
+          description: "{{ $value }} task retries per second over the last 5 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-task-retries"
+
+      # Warning: Long task execution times
+      - alert: MCPLongTaskExecution
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(mcp_task_execution_duration_seconds_bucket[5m])) by (le, task_type)
+          ) > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "MCP tasks taking unusually long to complete"
+          description: "95th percentile task duration is {{ $value }}s for {{ $labels.task_type }}"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-slow-tasks"
+
+      # Warning: Task timeout spike
+      - alert: MCPTaskTimeoutSpike
+        expr: |
+          rate(mcp_task_timeout_total[5m]) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "Spike in MCP task timeouts"
+          description: "{{ $value }} task timeouts per second over the last 5 minutes"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-task-timeouts"
+
+      # Warning: Low task performance
+      - alert: MCPLowTaskPerformance
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(mcp_task_performance_score_bucket{performance_dimension="overall"}[5m])) by (le, task_type)
+          ) < 0.6
+        for: 10m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "MCP task performance is degrading"
+          description: "95th percentile performance score is {{ $value }} for {{ $labels.task_type }} (threshold: 0.6)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-task-performance"
+
+      # Info: Task queue building up
+      - alert: MCPTaskQueueGrowth
+        expr: |
+          avg(mcp_task_queue_depth) > 20
+        for: 5m
+        labels:
+          severity: info
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "MCP task queues are growing"
+          description: "Average queue depth is {{ $value }} (threshold: 20)"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-queue-management"
+
+      # Info: New task types detected
+      - alert: MCPNewTaskTypeDetected
+        expr: |
+          increase(
+            count by (task_type) (
+              {__name__=~"mcp_task_.*", task_type!=""}
+            )[1h:]
+          ) > 0
+        for: 0s
+        labels:
+          severity: info
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "New MCP task type detected"
+          description: "New task type {{ $labels.task_type }} detected"
+
+      # Business: Task execution volume spike
+      - alert: MCPTaskVolumeSpike
+        expr: |
+          sum(rate(mcp_task_execution_total[1h])) > 
+          sum(rate(mcp_task_execution_total[24h] offset 24h)) * 3
+        for: 30m
+        labels:
+          severity: warning
+          service: mcp-monitor
+          category: tasks
+        annotations:
+          summary: "MCP task execution volume spike"
+          description: "Task execution rate is 3x higher than yesterday: {{ $value }} tasks/s"
+          runbook_url: "https://docs.marketsage.com/runbooks/mcp-capacity-planning"
