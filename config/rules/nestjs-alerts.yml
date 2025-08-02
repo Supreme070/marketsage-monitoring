@@ -1,0 +1,93 @@
+groups:
+  - name: nestjs_backend_alerts
+    interval: 30s
+    rules:
+      # Service availability
+      - alert: NestJSDown
+        expr: up{job="marketsage-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: nestjs
+        annotations:
+          summary: "NestJS backend is down"
+          description: "NestJS backend has been down for more than 2 minutes"
+
+      # High error rate
+      - alert: NestJSHighErrorRate
+        expr: rate(nestjs_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: nestjs
+        annotations:
+          summary: "High error rate in NestJS backend"
+          description: "Error rate is {{ $value }} errors/sec (threshold: 0.05)"
+
+      # High response time
+      - alert: NestJSHighResponseTime
+        expr: histogram_quantile(0.95, sum(rate(nestjs_http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: nestjs
+        annotations:
+          summary: "High response time in NestJS backend"
+          description: "95th percentile response time is {{ $value }}s (threshold: 0.5s)"
+
+      # Authentication failures
+      - alert: NestJSHighAuthFailures
+        expr: rate(nestjs_auth_attempts_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: nestjs
+          security: true
+        annotations:
+          summary: "High authentication failure rate"
+          description: "Auth failure rate is {{ $value }} failures/sec"
+
+      # Memory usage
+      - alert: NestJSHighMemoryUsage
+        expr: (nestjs_nodejs_heap_size_used_bytes / nestjs_nodejs_heap_size_total_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: nestjs
+        annotations:
+          summary: "High memory usage in NestJS backend"
+          description: "Heap usage is {{ $value | humanizePercentage }} of total"
+
+      # Event loop lag
+      - alert: NestJSHighEventLoopLag
+        expr: nestjs_nodejs_eventloop_lag_seconds > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: nestjs
+        annotations:
+          summary: "High event loop lag in NestJS backend"
+          description: "Event loop lag is {{ $value }}s (threshold: 0.1s)"
+
+      # Database connection issues
+      - alert: NestJSNoDatabaseConnections
+        expr: nestjs_db_connections_active == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: nestjs
+        annotations:
+          summary: "No active database connections"
+          description: "NestJS has no active database connections"
+
+      # JWT token validation failures
+      - alert: NestJSHighJWTFailures
+        expr: rate(nestjs_jwt_tokens_validated_total{status=~"invalid|expired"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: nestjs
+          security: true
+        annotations:
+          summary: "High JWT validation failure rate"
+          description: "JWT validation failure rate is {{ $value }} failures/sec"

@@ -4,6 +4,7 @@ global:
 
 rule_files:
   - "rules/*.yml"
+  - "rules/nestjs-alerts.yml"
 
 alerting:
   alertmanagers:
@@ -27,6 +28,13 @@ scrape_configs:
   - job_name: 'marketsage-app'
     static_configs:
       - targets: ['marketsage-web:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # MarketSage NestJS backend metrics
+  - job_name: 'marketsage-backend'
+    static_configs:
+      - targets: ['host.docker.internal:3006']
     metrics_path: '/metrics'
     scrape_interval: 15s
 
