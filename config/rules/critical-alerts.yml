@@ -1,0 +1,261 @@
+groups:
+  # Critical Infrastructure Alerts
+  - name: critical_infrastructure
+    interval: 30s
+    rules:
+      # Disk space alerts
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.*"}) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Filesystem {{ $labels.mountpoint }} has only {{ $value | humanizePercentage }} space remaining"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes{fstype!~"tmpfs|fuse.*"}) < 0.10
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Filesystem {{ $labels.mountpoint }} has only {{ $value | humanizePercentage }} space remaining"
+
+      # System CPU alerts
+      - alert: HostCPUCritical
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 10m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% for more than 10 minutes"
+
+      - alert: HostCPUHigh
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 15m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%"
+
+      # System memory alerts
+      - alert: HostMemoryCritical
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.95
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: HostMemoryHigh
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # Disk I/O alerts
+      - alert: HighDiskIOWait
+        expr: rate(node_cpu_seconds_total{mode="iowait"}[5m]) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High disk I/O wait on {{ $labels.instance }}"
+          description: "Disk I/O wait time is {{ $value }}%"
+
+      # Inodes alerts
+      - alert: HostInodesCritical
+        expr: (node_filesystem_files_free{fstype!~"tmpfs|fuse.*"} / node_filesystem_files{fstype!~"tmpfs|fuse.*"}) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical inode usage on {{ $labels.instance }}"
+          description: "Filesystem {{ $labels.mountpoint }} has only {{ $value | humanizePercentage }} inodes remaining"
+
+  # Critical Service Health Alerts
+  - name: critical_services
+    interval: 15s
+    rules:
+      # All critical services down
+      - alert: AllServicesDown
+        expr: count(up{job=~"marketsage.*"} == 0) > 2
+        for: 2m
+        labels:
+          severity: critical
+          service: platform
+        annotations:
+          summary: "Multiple critical services are down"
+          description: "{{ $value }} critical services are down"
+
+      # Prometheus scrape failures
+      - alert: PrometheusScrapeFailures
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "Prometheus cannot scrape {{ $labels.job }}"
+          description: "Prometheus has failed to scrape {{ $labels.job }} for 5+ minutes"
+
+      # Alertmanager down
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Alertmanager is down"
+          description: "Alertmanager has been down for 2+ minutes - alerts may not be delivered"
+
+      # Grafana down
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "Grafana is down"
+          description: "Grafana has been down for 5+ minutes - dashboards unavailable"
+
+  # Frontend Performance Alerts (Web Vitals)
+  - name: critical_frontend_performance
+    interval: 60s
+    rules:
+      # LCP (Largest Contentful Paint) poor
+      - alert: FrontendLCPPoor
+        expr: histogram_quantile(0.75, sum(rate(marketsage_frontend_lcp_bucket[10m])) by (le)) > 4000
+        for: 15m
+        labels:
+          severity: warning
+          service: frontend
+        annotations:
+          summary: "Poor Largest Contentful Paint (LCP)"
+          description: "75th percentile LCP is {{ $value }}ms (threshold: 4000ms). Users experiencing slow page loads."
+
+      # FID (First Input Delay) poor
+      - alert: FrontendFIDPoor
+        expr: histogram_quantile(0.75, sum(rate(marketsage_frontend_fid_bucket[10m])) by (le)) > 300
+        for: 15m
+        labels:
+          severity: warning
+          service: frontend
+        annotations:
+          summary: "Poor First Input Delay (FID)"
+          description: "75th percentile FID is {{ $value }}ms (threshold: 300ms). Users experiencing delayed interactions."
+
+      # CLS (Cumulative Layout Shift) poor
+      - alert: FrontendCLSPoor
+        expr: histogram_quantile(0.75, sum(rate(marketsage_frontend_cls_bucket[10m])) by (le)) > 0.25
+        for: 15m
+        labels:
+          severity: warning
+          service: frontend
+        annotations:
+          summary: "Poor Cumulative Layout Shift (CLS)"
+          description: "75th percentile CLS is {{ $value }} (threshold: 0.25). Users experiencing layout instability."
+
+      # TTFB (Time to First Byte) poor
+      - alert: FrontendTTFBPoor
+        expr: histogram_quantile(0.75, sum(rate(marketsage_frontend_ttfb_bucket[10m])) by (le)) > 1800
+        for: 15m
+        labels:
+          severity: warning
+          service: frontend
+        annotations:
+          summary: "Poor Time to First Byte (TTFB)"
+          description: "75th percentile TTFB is {{ $value }}ms (threshold: 1800ms). Server responses are slow."
+
+  # SSL Certificate Alerts
+  - name: critical_ssl_certificates
+    interval: 3600s  # Check every hour
+    rules:
+      - alert: SSLCertificateExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 7
+        for: 1h
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "SSL certificate expiring soon for {{ $labels.instance }}"
+          description: "SSL certificate expires in {{ $value | humanizeDuration }}"
+
+      - alert: SSLCertificateExpiringCritical
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 3
+        for: 1h
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "SSL certificate expiring in 3 days for {{ $labels.instance }}"
+          description: "SSL certificate expires in {{ $value | humanizeDuration }} - URGENT"
+
+  # Data Integrity Alerts
+  - name: critical_data_integrity
+    interval: 300s
+    rules:
+      # Database replication lag
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag > 60
+        for: 5m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL replication lag detected"
+          description: "Replication lag is {{ $value }}s on {{ $labels.instance }}"
+
+      # Backup failures (if monitoring backup jobs)
+      - alert: BackupFailed
+        expr: time() - last_successful_backup_timestamp > 86400 * 2
+        for: 1h
+        labels:
+          severity: critical
+          service: backup
+        annotations:
+          summary: "Database backup has not run successfully"
+          description: "Last successful backup was {{ $value | humanizeDuration }} ago"
+
+  # Network Alerts
+  - name: critical_network
+    interval: 60s
+    rules:
+      # High network errors
+      - alert: HighNetworkErrors
+        expr: rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: network
+        annotations:
+          summary: "High network errors on {{ $labels.instance }}"
+          description: "Network interface {{ $labels.device }} is experiencing {{ $value }} errors/sec"
+
+      # High network dropped packets
+      - alert: HighNetworkDrops
+        expr: rate(node_network_receive_drop_total[5m]) + rate(node_network_transmit_drop_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: network
+        annotations:
+          summary: "High network packet drops on {{ $labels.instance }}"
+          description: "Network interface {{ $labels.device }} is dropping {{ $value }} packets/sec"

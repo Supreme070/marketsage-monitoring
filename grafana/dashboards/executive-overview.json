@@ -1,0 +1,627 @@
+{
+  "dashboard": {
+    "title": "MarketSage - Executive Overview",
+    "uid": "marketsage-executive-overview",
+    "tags": ["executive", "overview", "kpis", "business", "health"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "5m",
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "type": "row",
+        "title": "Business Health",
+        "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+        "collapsed": false
+      },
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "Monthly Recurring Revenue (MRR)",
+        "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_mrr_usd",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 10000, "color": "yellow" },
+                { "value": 50000, "color": "green" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "Total Users",
+        "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_users_total",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 100, "color": "yellow" },
+                { "value": 1000, "color": "green" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "Active Users (30d)",
+        "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_active_users_30d",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 50, "color": "yellow" },
+                { "value": 500, "color": "green" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Conversion Rate",
+        "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_conversion_rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 2, "color": "yellow" },
+                { "value": 5, "color": "green" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": "stat",
+        "title": "Active Campaigns",
+        "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_campaigns_active",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "blue" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 6,
+        "type": "stat",
+        "title": "Total Contacts",
+        "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_contacts_total",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "blue" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "MRR Growth Trend",
+        "gridPos": { "x": 0, "y": 5, "w": 12, "h": 6 },
+        "targets": [
+          {
+            "expr": "marketsage_business_mrr_usd",
+            "refId": "A",
+            "legendFormat": "MRR"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "pointSize": 5,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "single"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "type": "timeseries",
+        "title": "User Growth",
+        "gridPos": { "x": 12, "y": 5, "w": 12, "h": 6 },
+        "targets": [
+          {
+            "expr": "marketsage_business_users_total",
+            "refId": "A",
+            "legendFormat": "Total Users"
+          },
+          {
+            "expr": "marketsage_business_active_users_30d",
+            "refId": "B",
+            "legendFormat": "Active Users (30d)"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "pointSize": 5,
+              "showPoints": "never"
+            }
+          }
+        },
+        "options": {
+          "tooltip": {
+            "mode": "multi"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "row",
+        "title": "System Health",
+        "gridPos": { "x": 0, "y": 11, "w": 24, "h": 1 },
+        "collapsed": false
+      },
+      {
+        "id": 9,
+        "type": "stat",
+        "title": "System Uptime (30d)",
+        "gridPos": { "x": 0, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "avg_over_time(up{job=\"marketsage-backend\"}[30d]) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 99, "color": "yellow" },
+                { "value": 99.9, "color": "green" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 10,
+        "type": "stat",
+        "title": "API Response Time (p95)",
+        "gridPos": { "x": 6, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 200, "color": "yellow" },
+                { "value": 500, "color": "red" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 11,
+        "type": "stat",
+        "title": "Error Rate (24h)",
+        "gridPos": { "x": 12, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"5..\"}[24h])) / sum(rate(http_requests_total[24h])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 0.1, "color": "yellow" },
+                { "value": 1, "color": "red" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 12,
+        "type": "stat",
+        "title": "Active Incidents",
+        "gridPos": { "x": 18, "y": 12, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\", severity=~\"critical|warning\"})",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 1, "color": "yellow" },
+                { "value": 3, "color": "red" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "type": "row",
+        "title": "Operations",
+        "gridPos": { "x": 0, "y": 16, "w": 24, "h": 1 },
+        "collapsed": false
+      },
+      {
+        "id": 13,
+        "type": "stat",
+        "title": "Campaigns Sent (30d)",
+        "gridPos": { "x": 0, "y": 17, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(increase(marketsage_business_campaigns_sent_total[30d]))",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "blue" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      },
+      {
+        "id": 14,
+        "type": "piechart",
+        "title": "Campaign Distribution by Channel",
+        "gridPos": { "x": 6, "y": 17, "w": 6, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum(increase(marketsage_business_campaigns_sent_total[30d])) by (channel)",
+            "refId": "A",
+            "legendFormat": "{{channel}}"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "values": ["value", "percent"]
+          },
+          "pieType": "pie",
+          "tooltip": {
+            "mode": "single"
+          }
+        }
+      },
+      {
+        "id": 15,
+        "type": "timeseries",
+        "title": "Daily Active Users vs Campaign Activity",
+        "gridPos": { "x": 12, "y": 17, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "marketsage_business_active_users_30d",
+            "refId": "A",
+            "legendFormat": "Active Users"
+          },
+          {
+            "expr": "marketsage_business_campaigns_active",
+            "refId": "B",
+            "legendFormat": "Active Campaigns"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "axisPlacement": "auto",
+              "drawStyle": "line",
+              "pointSize": 5,
+              "showPoints": "never"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Active Campaigns"
+              },
+              "properties": [
+                {
+                  "id": "custom.axisPlacement",
+                  "value": "right"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {
+          "tooltip": {
+            "mode": "multi"
+          },
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "id": 16,
+        "type": "stat",
+        "title": "Engaged Contacts (30d)",
+        "gridPos": { "x": 0, "y": 21, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "marketsage_business_contacts_engaged_30d",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "blue" }
+              ]
+            }
+          }
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          }
+        }
+      }
+    ]
+  }
+}

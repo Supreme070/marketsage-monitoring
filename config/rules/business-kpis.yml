@@ -1,0 +1,188 @@
+groups:
+  - name: business_kpi_recording_rules
+    interval: 1m
+    rules:
+      # Revenue Recording Rules
+      - record: marketsage:business:mrr:usd
+        expr: marketsage_business_mrr_usd
+
+      - record: marketsage:business:revenue_daily:usd
+        expr: sum(increase(marketsage_business_revenue_total_usd[24h]))
+
+      - record: marketsage:business:revenue_by_plan:usd
+        expr: sum by (plan_type) (increase(marketsage_business_revenue_total_usd[24h]))
+
+      # User Recording Rules
+      - record: marketsage:business:users:total
+        expr: marketsage_business_users_total
+
+      - record: marketsage:business:users:active_30d
+        expr: marketsage_business_active_users_30d
+
+      - record: marketsage:business:users:activation_rate
+        expr: (marketsage_business_active_users_30d / marketsage_business_users_total) * 100
+
+      - record: marketsage:business:users:new_daily
+        expr: sum(increase(marketsage_business_new_users_total[24h]))
+
+      - record: marketsage:business:users:new_by_source
+        expr: sum by (source) (increase(marketsage_business_new_users_total[24h]))
+
+      # Campaign Recording Rules
+      - record: marketsage:business:campaigns:active
+        expr: marketsage_business_campaigns_active
+
+      - record: marketsage:business:campaigns:sent_daily
+        expr: sum(increase(marketsage_business_campaigns_sent_total[24h]))
+
+      - record: marketsage:business:campaigns:success_rate
+        expr: |
+          (
+            sum(increase(marketsage_business_campaigns_sent_total{status="sent"}[5m]))
+            /
+            sum(increase(marketsage_business_campaigns_sent_total[5m]))
+          ) * 100
+
+      - record: marketsage:business:campaigns:by_channel
+        expr: sum by (channel) (increase(marketsage_business_campaigns_sent_total[24h]))
+
+      # Conversion Recording Rules
+      - record: marketsage:business:conversion_rate
+        expr: marketsage_business_conversion_rate
+
+      - record: marketsage:business:conversions:daily
+        expr: sum(increase(marketsage_business_conversions_total[24h]))
+
+      - record: marketsage:business:conversions:by_type
+        expr: sum by (type) (increase(marketsage_business_conversions_total[24h]))
+
+      # Contact Recording Rules
+      - record: marketsage:business:contacts:total
+        expr: marketsage_business_contacts_total
+
+      - record: marketsage:business:contacts:engaged_30d
+        expr: marketsage_business_contacts_engaged_30d
+
+      - record: marketsage:business:contacts:engagement_rate
+        expr: (marketsage_business_contacts_engaged_30d / marketsage_business_contacts_total) * 100
+
+      # Growth Rate Calculations (7-day moving average)
+      - record: marketsage:business:mrr:growth_rate_7d
+        expr: |
+          (
+            (marketsage_business_mrr_usd - marketsage_business_mrr_usd offset 7d)
+            /
+            marketsage_business_mrr_usd offset 7d
+          ) * 100
+
+      - record: marketsage:business:users:growth_rate_7d
+        expr: |
+          (
+            (marketsage_business_users_total - marketsage_business_users_total offset 7d)
+            /
+            marketsage_business_users_total offset 7d
+          ) * 100
+
+  - name: business_kpi_alerts
+    interval: 1m
+    rules:
+      # Revenue Alerts
+      - alert: MRRDropSignificant
+        expr: |
+          (
+            (marketsage_business_mrr_usd - marketsage_business_mrr_usd offset 1d)
+            /
+            marketsage_business_mrr_usd offset 1d
+          ) * 100 < -10
+        for: 15m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "MRR dropped by more than 10%"
+          description: "MRR decreased from ${{ $value | humanize }} in the last 24 hours"
+
+      - alert: NoRevenueToday
+        expr: sum(increase(marketsage_business_revenue_total_usd[24h])) == 0
+        for: 12h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "No revenue recorded in last 24 hours"
+          description: "Zero revenue has been recorded in the past day. Check payment processing."
+
+      # User Growth Alerts
+      - alert: UserGrowthStalled
+        expr: sum(increase(marketsage_business_new_users_total[24h])) == 0
+        for: 48h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "No new user signups in 48 hours"
+          description: "User acquisition has stalled. Check marketing campaigns and signup flow."
+
+      - alert: ActiveUsersDeclining
+        expr: |
+          (
+            (marketsage_business_active_users_30d - marketsage_business_active_users_30d offset 7d)
+            /
+            marketsage_business_active_users_30d offset 7d
+          ) * 100 < -20
+        for: 1h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Active users declined by more than 20%"
+          description: "30-day active users dropped by {{ $value | humanizePercentage }}. Investigate user retention."
+
+      # Campaign Alerts
+      - alert: CampaignFailureRateHigh
+        expr: |
+          (
+            sum(rate(marketsage_business_campaigns_sent_total{status="failed"}[5m]))
+            /
+            sum(rate(marketsage_business_campaigns_sent_total[5m]))
+          ) * 100 > 10
+        for: 15m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Campaign failure rate exceeds 10%"
+          description: "{{ $value | humanizePercentage }}% of campaigns are failing. Check email/SMS providers."
+
+      - alert: NoCampaignsActive
+        expr: marketsage_business_campaigns_active == 0
+        for: 24h
+        labels:
+          severity: info
+          category: business
+        annotations:
+          summary: "No active campaigns running"
+          description: "No marketing campaigns are currently active for 24+ hours."
+
+      # Conversion Alerts
+      - alert: ConversionRateDrop
+        expr: marketsage_business_conversion_rate < 1
+        for: 6h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Conversion rate below 1%"
+          description: "Conversion rate is {{ $value | humanizePercentage }}%. Check funnel and user experience."
+
+      # Contact Engagement Alerts
+      - alert: ContactEngagementLow
+        expr: |
+          (marketsage_business_contacts_engaged_30d / marketsage_business_contacts_total) * 100 < 10
+        for: 24h
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Contact engagement rate below 10%"
+          description: "Only {{ $value | humanizePercentage }}% of contacts engaged in last 30 days. Review content strategy."
