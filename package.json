@@ -1,0 +1,26 @@
+{
+  "name": "marketsage-monitoring",
+  "version": "1.0.0",
+  "description": "MarketSage Monitoring Stack - Grafana, Prometheus, and Alerting",
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Supreme070/marketsage-monitoring.git"
+  },
+  "keywords": [
+    "monitoring",
+    "grafana",
+    "prometheus",
+    "alerting",
+    "observability"
+  ],
+  "author": "MarketSage Team",
+  "license": "MIT"
+}
