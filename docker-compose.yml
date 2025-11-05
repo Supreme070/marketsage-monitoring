@@ -87,7 +87,7 @@ services:
       - monitoring
       - all
 
-  # Tempo for distributed tracing  
+  # Tempo for distributed tracing
   tempo:
     image: grafana/tempo:latest
     container_name: marketsage-tempo
@@ -105,11 +105,8 @@ services:
       - monitoring
       - marketsage_default
       - marketsage_backend_default
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3200/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # Note: No healthcheck - Tempo uses distroless images without shell/wget/curl
+    # Grafana's official examples omit healthcheck for this reason
     profiles:
       - monitoring
       - all
@@ -187,7 +184,7 @@ services:
     ports:
       - "9187:9187"
     environment:
-      DATA_SOURCE_NAME: postgresql://marketsage:${POSTGRES_PASSWORD:-marketsage_password}@marketsage-postgres:5432/marketsage?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://marketsage:${POSTGRES_PASSWORD:-marketsage_password}@marketsage-db-production:5432/marketsage?sslmode=disable
     networks:
       - monitoring
       - marketsage_default
@@ -204,7 +201,7 @@ services:
     ports:
       - "9121:9121"
     environment:
-      REDIS_ADDR: redis://marketsage-redis:6379
+      REDIS_ADDR: redis://marketsage-redis-production:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     networks:
       - monitoring
@@ -233,7 +230,7 @@ networks:
   # External networks to connect to MarketSage services
   marketsage_default:
     external: true
-    name: marketsage_${NODE_ENV:-development}
+    name: marketsage-network
   marketsage_backend_default:
     external: true
-    name: marketsage_backend_${NODE_ENV:-development}
+    name: marketsage-network

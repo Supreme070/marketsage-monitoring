@@ -12,6 +12,13 @@ alerting:
         - targets:
           - alertmanager:9093
 
+# Send metrics to Grafana Cloud
+remote_write:
+  - url: ${GRAFANA_CLOUD_PROMETHEUS_URL}
+    basic_auth:
+      username: ${GRAFANA_CLOUD_PROMETHEUS_USERNAME}
+      password: ${GRAFANA_CLOUD_API_TOKEN}
+
 scrape_configs:
   # Prometheus self-monitoring
   - job_name: 'prometheus'
@@ -34,48 +41,54 @@ scrape_configs:
   # MarketSage NestJS backend metrics
   - job_name: 'marketsage-backend'
     static_configs:
-      - targets: ['host.docker.internal:3006']
-    metrics_path: '/metrics'
+      - targets: ['marketsage-backend-prod:3006']
+    metrics_path: '/api/v2/metrics'
     scrape_interval: 15s
 
   # PostgreSQL metrics
   - job_name: 'postgres'
     static_configs:
-      - targets: ['postgres-exporter:9187']
+      - targets: ['marketsage-postgres-exporter:9187']
     scrape_interval: 30s
 
   # Redis metrics
   - job_name: 'redis'
     static_configs:
-      - targets: ['redis-exporter:9121']
+      - targets: ['marketsage-redis-exporter:9121']
     scrape_interval: 30s
 
   # Container metrics
   - job_name: 'cadvisor'
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets: ['marketsage-cadvisor:8080']
     scrape_interval: 30s
 
   # System metrics
   - job_name: 'node'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['marketsage-node-exporter:9100']
     scrape_interval: 30s
 
   # Loki metrics
   - job_name: 'loki'
     static_configs:
-      - targets: ['loki:3100']
+      - targets: ['marketsage-loki:3100']
     scrape_interval: 30s
 
   # Alertmanager metrics
   - job_name: 'alertmanager'
     static_configs:
-      - targets: ['alertmanager:9093']
+      - targets: ['marketsage-alertmanager:9093']
     scrape_interval: 30s
 
   # Grafana metrics
   - job_name: 'grafana'
     static_configs:
-      - targets: ['grafana:3000']
+      - targets: ['marketsage-grafana:3000']
+    scrape_interval: 30s
+
+  # Tempo metrics
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['marketsage-tempo:3200']
     scrape_interval: 30s
